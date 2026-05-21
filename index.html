@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Product Team Dashboard</title>
-<script src="https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
 <style>
   :root {
     --bg: #f5f4f0; --surface: #ffffff; --surface2: #f0efe9;
@@ -155,16 +155,10 @@
     Settings
   </button>
   <div class="nav-section">Teams</div>
-  <button class="nav-item" onclick="filterTeam('Mercury')"><div class="team-dot" style="background:#2563eb"></div>Mercury</button>
-  <button class="nav-item" onclick="filterTeam('Jupiter')"><div class="team-dot" style="background:#7c3aed"></div>Jupiter</button>
-  <button class="nav-item" onclick="filterTeam('Top Gun')"><div class="team-dot" style="background:#0d9488"></div>Top Gun</button>
-  <button class="nav-item" onclick="filterTeam('Maverick')"><div class="team-dot" style="background:#d97706"></div>Maverick</button>
-  <button class="nav-item" onclick="filterTeam('Delta')"><div class="team-dot" style="background:#dc2626"></div>Delta</button>
-  <button class="nav-item" onclick="filterTeam('Neptune')"><div class="team-dot" style="background:#0891b2"></div>Neptune</button>
-  <button class="nav-item" onclick="filterTeam('Mars')"><div class="team-dot" style="background:#ea580c"></div>Mars</button>
   <button class="nav-item" onclick="filterTeam('DIS')"><div class="team-dot" style="background:#6b7280"></div>DIS</button>
   <button class="nav-item" onclick="filterTeam('HxPro')"><div class="team-dot" style="background:#0891b2"></div>HxPro</button>
   <button class="nav-item" onclick="filterTeam('Portals')"><div class="team-dot" style="background:#16a34a"></div>Portals</button>
+  <button class="nav-item" onclick="filterTeam('HxApps')"><div class="team-dot" style="background:#7c3aed"></div>HxApps</button>
   <button class="nav-item" onclick="filterTeam('Venus')"><div class="team-dot" style="background:#db2777"></div>Venus</button>
 </aside>
 
@@ -271,7 +265,7 @@
     <div class="form-grid">
       <div class="form-group"><label>ID</label><input type="text" id="f-id" placeholder="e.g. 83500"></div>
       <div class="form-group"><label>Team</label>
-        <select id="f-team-m"><option>Mercury</option><option>Jupiter</option><option>Top Gun</option><option>Maverick</option><option>Delta</option><option>Neptune</option><option>Mars</option><option>DIS</option><option>HxPro</option><option>Portals</option><option>Venus</option></select>
+        <select id="f-team-m"><option>DIS</option><option>HxPro</option><option>Portals</option><option>HxApps</option><option>Venus</option></select>
       </div>
       <div class="form-group"><label>Type</label>
         <select id="f-type-m"><option>User Story</option><option>Task</option><option>Incident</option><option>Bug</option><option>Feature</option><option>Epic</option></select>
@@ -313,267 +307,7 @@ function saveSettings() {
   cfg.year = document.getElementById('cfg-year').value.trim() || '2026';
   try { localStorage.setItem('hxdash_cfg', JSON.stringify(cfg)); } catch(e){}
   document.getElementById('settings-status').textContent = '✓ Saved! Reloading data…';
-  setTimeout(() => { document.getElementById('settings-status').textContent = ''; loadFromADO(); }, 800);
-}
-
-// ── ADO API ──────────────────────────────────────────────────────────────────
-const TEAMS = ['Mercury','Jupiter','Top Gun','Maverick','Delta','Neptune','Mars','DIS','HxPro','Portals','HxApps','Venus'];
-const STATUS_META = {
-  Active:   {bg:'#eff6ff',text:'#1d4ed8',dot:'#2563eb'},
-  New:      {bg:'#fffbeb',text:'#b45309',dot:'#d97706'},
-  Closed:   {bg:'#f0fdf4',text:'#15803d',dot:'#16a34a'},
-  Ready:    {bg:'#f5f3ff',text:'#6d28d9',dot:'#7c3aed'},
-  Accepted: {bg:'#eff6ff',text:'#1e40af',dot:'#3b82f6'},
-  Complete: {bg:'#f0fdf4',text:'#0f766e',dot:'#0d9488'},
-  Resolved: {bg:'#f9fafb',text:'#4b5563',dot:'#6b7280'},
-};
-const TYPE_COLOR = {'User Story':'#7c3aed','Task':'#6b7280','Incident':'#d97706','Bug':'#dc2626','Feature':'#2563eb','Epic':'#0d9488','Issue':'#d97706'};
-const TEAM_DOT = {Mercury:'#2563eb',Jupiter:'#7c3aed','Top Gun':'#0d9488',Maverick:'#d97706',Delta:'#dc2626',Neptune:'#0891b2',Mars:'#ea580c',DIS:'#6b7280',HxPro:'#0891b2',Portals:'#16a34a',HxApps:'#7c3aed',Venus:'#db2777'};
-
-let allItems = [];
-let changes = {};
-let editingId = null;
-let page = 0;
-const PAGE = 20;
-let sortKey = '', sortDir = 1;
-let activeTeamFilter = '';
-
-function b64(pat) { return btoa(unescape(encodeURIComponent(':' + pat))); }
-
-async function adoWIQL(wiql) {
-  const url = `https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/wiql?$top=500&api-version=7.0`;
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { 'Authorization': 'Basic ' + b64(cfg.pat), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: wiql })
-  });
-  if (!r.ok) throw new Error(`WIQL query failed: ${r.status} ${r.statusText}`);
-  return r.json();
-}
-
-async function adoGetItems(ids) {
-  if (!ids.length) return [];
-  const fields = ['System.Id','System.Title','System.State','System.WorkItemType','System.AssignedTo','System.AreaPath','System.IterationPath','Microsoft.VSTS.Scheduling.StoryPoints'];
-  const chunks = [];
-  for (let i = 0; i < ids.length; i += 200) chunks.push(ids.slice(i, i+200));
-  let results = [];
-  for (const chunk of chunks) {
-    const url = `https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/workitemsbatch?api-version=7.0`;
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Authorization': 'Basic ' + b64(cfg.pat), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: chunk, fields })
-    });
-    if (!r.ok) throw new Error(`Work items fetch failed: ${r.status}`);
-    const d = await r.json();
-    results = results.concat(d.value || []);
-  }
-  return results;
-}
-
-function parseTeamFromArea(areaPath) {
-  if (!areaPath) return 'Unknown';
-  const parts = areaPath.split('\\');
-  // Look for 'Team X' pattern first
-  for (const part of parts) {
-    const m = part.match(/^Teams+(.+)/i);
-    if (m) return m[1].trim();
-  }
-  // Otherwise return last segment
-  return parts[parts.length - 1] || 'Unknown';
-}
-
-async function loadFromADO() {
-  if (!cfg.pat) {
-    showNoPATState();
-    return;
-  }
-  setLoadingState();
-  try {
-    const wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${cfg.project}' ORDER BY [System.ChangedDate] DESC`; // top 500
-
-    const wiqlResult = await adoWIQL(wiql);
-    const ids = (wiqlResult.workItems || []).map(w => w.id);
-
-    if (!ids.length) {
-      setEmptyState();
-      return;
-    }
-
-    const raw = await adoGetItems(ids);
-    allItems = raw.map(w => {
-      const f = w.fields;
-      const assignedTo = f['System.AssignedTo'];
-      const assignee = typeof assignedTo === 'object' ? (assignedTo?.displayName || '') : (assignedTo || '');
-      const team = parseTeamFromArea(f['System.AreaPath']);
-      return {
-        id: String(w.id),
-        team,
-        type: f['System.WorkItemType'] || 'Task',
-        title: f['System.Title'] || '',
-        assignee,
-        status: f['System.State'] || 'New',
-        original: f['System.State'] || 'New',
-        iterationPath: f['System.IterationPath'] || '',
-        storyPoints: f['Microsoft.VSTS.Scheduling.StoryPoints'] || 0,
-      };
-    });
-
-    changes = {};
-    page = 0;
-    renderDashboard();
-    renderTable();
-    showToast(`✓ Loaded ${allItems.length} items from ADO`);
-  } catch(err) {
-    setErrorState(err.message);
-  }
-}
-
-// ── State renderers ──────────────────────────────────────────────────────────
-function setLoadingState() {
-  document.getElementById('dash-content').innerHTML = `<div class="state-box"><div class="spinner"></div><h3>Loading from Azure DevOps…</h3><p>Fetching Q2 ${cfg.year} work items across all teams</p></div>`;
-  document.getElementById('tracker-content').innerHTML = `<div class="state-box"><div class="spinner"></div><h3>Loading…</h3></div>`;
-}
-
-function showNoPATState() {
-  const html = `<div class="state-box">
-    <div class="icon">🔑</div>
-    <h3>No PAT configured</h3>
-    <p>Go to <strong>Settings</strong> and enter your Azure DevOps Personal Access Token to load live data.</p>
-    <br><button class="btn btn-primary" onclick="showPage('settings',null)" style="margin-top:8px">Open Settings</button>
-  </div>`;
-  document.getElementById('dash-content').innerHTML = html;
-  document.getElementById('tracker-content').innerHTML = html;
-}
-
-function setErrorState(msg) {
-  const html = `<div class="state-box">
-    <div class="icon">⚠️</div>
-    <h3>Could not connect to Azure DevOps</h3>
-    <p style="color:#dc2626;font-family:monospace;font-size:11px;margin:8px 0">${msg}</p>
-    <p>Check your PAT and org/project in <strong>Settings</strong>, or make sure the PAT has Work Items → Read scope.</p>
-    <br><button class="btn btn-primary" onclick="showPage('settings',null)" style="margin-top:8px">Open Settings</button>
-  </div>`;
-  document.getElementById('dash-content').innerHTML = html;
-  document.getElementById('tracker-content').innerHTML = html;
-}
-
-function setEmptyState() {
-  const html = `<div class="state-box"><div class="icon">📭</div><h3>No items found</h3><p>No Q2 ${cfg.year} work items were returned. Check your iteration path filter in Settings.</p></div>`;
-  document.getElementById('dash-content').innerHTML = html;
-  document.getElementById('tracker-content').innerHTML = html;
-}
-
-// ── Dashboard ────────────────────────────────────────────────────────────────
-const chartInstances = {};
-function mkChart(id, config) {
-  if (chartInstances[id]) chartInstances[id].destroy();
-  const el = document.getElementById(id);
-  if (el) chartInstances[id] = new Chart(el, config);
-}
-const gc = '#e8e7e1', tc = '#9a9890';
-const DONUT_COLORS = {Active:'#2563eb',New:'#d97706',Closed:'#16a34a',Ready:'#7c3aed',Accepted:'#3b82f6',Complete:'#0d9488',Resolved:'#6b7280'};
-
-function renderDashboard() {
-  const items = allItems;
-  const closed = items.filter(i=>['Closed','Complete'].includes(i.status)).length;
-  const pct = items.length ? Math.round(closed/items.length*100) : 0;
-
-  // Metrics
-  const metricsHtml = `
-    <div class="metrics">
-      <div class="metric"><div class="val">${items.length}</div><div class="lbl">Total items</div></div>
-      <div class="metric"><div class="val" style="color:#2563eb">${items.filter(i=>i.status==='Active').length}</div><div class="lbl">Active</div></div>
-      <div class="metric"><div class="val" style="color:#d97706">${items.filter(i=>i.status==='New').length}</div><div class="lbl">New</div></div>
-      <div class="metric"><div class="val" style="color:#16a34a">${closed}</div><div class="lbl">Closed/Complete</div></div>
-      <div class="metric"><div class="val" style="color:#0d9488">${pct}%</div><div class="lbl">Completion</div></div>
-      <div class="metric"><div class="val">${[...new Set(items.map(i=>i.assignee).filter(Boolean))].length}</div><div class="lbl">Contributors</div></div>
-    </div>`;
-
-  // Legend
-  const legendHtml = `<div class="legend">
-    ${Object.entries(STATUS_META).map(([s,m])=>`<div class="leg"><div class="leg-dot" style="background:${m.dot}"></div><span style="color:${m.text};font-weight:600">${s}</span></div>`).join('')}
-  </div>`;
-
-  // Per-team status donuts
-  const teamCardsHtml = `<div class="charts-grid" style="grid-template-columns:repeat(3,1fr)">
-    ${TEAMS.map(t=>{
-      const ti = items.filter(i=>i.team===t);
-      if (!ti.length) return '';
-      return `<div class="chart-card">
-        <h3><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${TEAM_DOT[t]||'#888'};margin-right:6px;vertical-align:2px"></span>${t}</h3>
-        <p>${ti.length} items</p>
-        <canvas id="ch-${t.replace(/\s/g,'')}" style="display:block;width:100%;height:160px"></canvas>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
-          ${Object.entries(DONUT_COLORS).map(([s,c])=>{const n=ti.filter(i=>i.status===s).length;return n?`<span style="font-size:10px;color:#6b7280"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c};margin-right:3px"></span>${s} ${n}</span>`:''}).join('')}
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
-
-  // Type chart data
-  const types = ['User Story','Task','Incident','Bug','Feature'];
-  const typeData = TEAMS.map(t=>({
-    team: t,
-    ...Object.fromEntries(types.map(ty=>[ty, items.filter(i=>i.team===t&&i.type===ty).length]))
-  })).filter(d=>TEAMS.some(t=>d.team===t&&items.filter(i=>i.team===t).length>0));
-
-  // SP top assignees
-  const spMap = {};
-  items.forEach(i=>{ if(i.storyPoints && i.assignee) spMap[i.assignee] = (spMap[i.assignee]||0)+i.storyPoints; });
-  const spTop = Object.entries(spMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const spMax = spTop[0]?.[1] || 1;
-  const spColors = ['#2563eb','#7c3aed','#0d9488','#d97706','#dc2626','#0891b2','#ea580c','#16a34a','#6b7280','#3b82f6'];
-
-  const spHtml = spTop.length ? `<div class="chart-card" style="margin-bottom:14px">
-    <h3>Story points by assignee — all teams</h3>
-    <p>Top contributors by Q2 story points</p>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
-      ${spTop.map(([n,p],i)=>`<div style="display:flex;align-items:center;gap:10px">
-        <div style="width:140px;font-size:11px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">${n}</div>
-        <div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.round(p/spMax*100)}%;background:${spColors[i%spColors.length]}"></div></div>
-        <div style="width:26px;font-size:11px;font-weight:500;text-align:right;flex-shrink:0">${p}</div>
-      </div>`).join('')}
-    </div>
-  </div>` : '';
-
-  const typeChartHtml = `<div class="chart-card" style="margin-bottom:14px">
-    <h3>Work type mix — all teams</h3>
-    <p>Distribution of work item types per team</p>
-    <canvas id="ch-types" height="180"></canvas>
-  </div>`;
-
-  document.getElementById('dash-content').innerHTML = metricsHtml + legendHtml + teamCardsHtml + typeChartHtml + spHtml;
-  setTimeout(() => {
-
-  // Draw donuts
-  TEAMS.forEach(t => {
-    const ti = items.filter(i=>i.team===t);
-    if (!ti.length) return;
-    const counts = Object.entries(DONUT_COLORS).map(([s,c])=>({name:s,value:ti.filter(i=>i.status===s).length,color:c})).filter(d=>d.value>0);
-    mkChart('ch-'+t.replace(/\s/g,''), {
-      type:'doughnut',
-      data:{ labels:counts.map(d=>d.name), datasets:[{data:counts.map(d=>d.value),backgroundColor:counts.map(d=>d.color),borderWidth:2,borderColor:'#fff'}]},
-      options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw}`}}}}
-    });
-  });
-
-  // Type bar chart
-  mkChart('ch-types', {
-    type:'bar',
-    data:{
-      labels: items.length ? [...new Set(allItems.filter(i=>TEAMS.includes(i.team)).map(i=>i.team))] : TEAMS,
-      datasets: types.map((ty,i)=>({
-        label:ty,
-        data: TEAMS.map(t=>items.filter(i=>i.team===t&&i.type===ty).length).filter((_,idx)=>items.filter(i=>i.team===TEAMS[idx]).length>0),
-        backgroundColor:[TYPE_COLOR[ty]||'#888'],
-        borderRadius:3,borderWidth:0
-      }))
-    },
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:tc,font:{size:10},boxWidth:9,boxHeight:9}}},
-      scales:{x:{ticks:{color:tc,font:{size:10}},grid:{color:gc}},y:{ticks:{color:tc,font:{size:10}},grid:{color:gc},beginAtZero:true}}}
-  });
-  }, 150);
+  // Charts rendered as inline SVG - no Chart.js needed
 }
 
 // ── Tracker ──────────────────────────────────────────────────────────────────
