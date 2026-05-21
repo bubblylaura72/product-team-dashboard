@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product Team Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #f5f4f0; --surface: #ffffff; --surface2: #f0efe9;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.14);
+    --text: #1a1917; --text-2: #5c5a54; --text-3: #9a9890;
+    --blue: #2563eb; --teal: #0d9488; --amber: #d97706;
+    --red: #dc2626; --purple: #7c3aed; --green: #16a34a; --gray: #6b7280;
+    --radius: 10px; --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+  .app { display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar { width: 215px; background: var(--surface); border-right: 1px solid var(--border); padding-top: 24px; flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .sidebar-logo { padding: 0 20px 18px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+  .sidebar-logo h1 { font-size: 13px; font-weight: 600; }
+  .sidebar-logo p { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 20px; font-size: 13px; color: var(--text-2); cursor: pointer; border: none; background: none; width: 100%; text-align: left; transition: all .12s; }
+  .nav-item:hover { background: var(--bg); color: var(--text); }
+  .nav-item.active { background: #eff6ff; color: var(--blue); font-weight: 500; }
+  .nav-section { padding: 14px 20px 5px; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+  .team-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .nav-icon { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.6; }
+
+  /* Main */
+  .main { flex: 1; padding: 28px; overflow-x: hidden; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-header { margin-bottom: 22px; }
+  .page-header h2 { font-size: 22px; font-weight: 400; }
+  .page-header p { font-size: 13px; color: var(--text-3); margin-top: 4px; }
+
+  /* Config banner */
+  .config-banner { background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; }
+  .config-banner h3 { font-size: 13px; font-weight: 600; color: #9a3412; margin-bottom: 10px; }
+  .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .config-field label { font-size: 11px; font-weight: 500; color: var(--text-2); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .config-field input { width: 100%; font-family: inherit; font-size: 12px; padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: #fff; color: var(--text); outline: none; }
+  .config-field input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+  .config-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .config-note { font-size: 11px; color: var(--text-3); }
+
+  /* Metrics */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .metric .val { font-size: 26px; font-weight: 300; line-height: 1; }
+  .metric .lbl { font-size: 10px; color: var(--text-3); margin-top: 5px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* Charts */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .chart-card h3 { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+  .chart-card p { font-size: 11px; color: var(--text-3); margin-bottom: 14px; }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 16px; border: 1px solid var(--border); }
+  .leg { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-2); }
+  .leg-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 500; white-space: nowrap; }
+
+  /* Table */
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 14px; }
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .toolbar-title { font-size: 13px; font-weight: 500; flex: 1; min-width: 100px; }
+  input[type=text], select { font-family: inherit; font-size: 12px; padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; }
+  input[type=text]:focus, select:focus { border-color: var(--blue); }
+  .btn { font-family: inherit; font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: var(--radius-sm); cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); transition: all .12s; }
+  .btn:hover { background: var(--bg); }
+  .btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+  .btn-danger { background: #fef2f2; color: #b91c1c; border-color: transparent; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-size: 11px; font-weight: 500; color: var(--text-3); text-align: left; padding: 8px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #fafaf8; }
+  tbody tr.changed { background: #fffbeb; }
+  td { padding: 8px 12px; font-size: 12px; vertical-align: middle; }
+  .cell-title { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status-sel { font-size: 11px; padding: 3px 8px; border-radius: 20px; border: 1px solid var(--border-strong); background: var(--surface); cursor: pointer; width: 108px; }
+
+  /* Pagination */
+  .pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-2); }
+
+  /* Change bar */
+  .change-bar { display: none; align-items: center; justify-content: space-between; padding: 10px 14px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: var(--radius-sm); margin-bottom: 12px; font-size: 12px; color: #b45309; }
+  .change-bar.show { display: flex; }
+
+  /* Loading / error states */
+  .state-box { text-align: center; padding: 48px 20px; color: var(--text-3); }
+  .state-box .icon { font-size: 32px; margin-bottom: 12px; }
+  .state-box h3 { font-size: 15px; font-weight: 500; color: var(--text-2); margin-bottom: 6px; }
+  .state-box p { font-size: 12px; }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 14px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius); padding: 26px; width: 460px; max-width: 95vw; box-shadow: 0 20px 40px rgba(0,0,0,0.12); }
+  .modal h3 { font-size: 15px; font-weight: 500; margin-bottom: 18px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group.full { grid-column: 1/-1; }
+  .form-group label { font-size: 11px; font-weight: 500; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em; }
+  .form-group input, .form-group select { width: 100%; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+  /* Mini bar */
+  .mini-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; flex: 1; }
+  .mini-bar-fill { height: 100%; border-radius: 3px; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 22px; right: 22px; background: var(--text); color: #fff; padding: 10px 16px; border-radius: var(--radius-sm); font-size: 12px; opacity: 0; transform: translateY(6px); transition: all .2s; z-index: 200; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 700px) {
+    .sidebar { display: none; }
+    .main { padding: 16px; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .metrics { grid-template-columns: repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h1>Product Team Dashboard</h1>
+    <p>Q2 2026 · Live from ADO</p>
+  </div>
+  <button class="nav-item active" onclick="showPage('dashboard',this)">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Dashboard
+  </button>
+  <button class="nav-item" onclick="showPage('tracker',this)">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 12 2 2 4-4"/></svg>
+    Status Tracker
+  </button>
+  <button class="nav-item" onclick="showPage('settings',this)">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Settings
+  </button>
+  <div class="nav-section">Teams</div>
+  <button class="nav-item" onclick="filterTeam('Mercury')"><div class="team-dot" style="background:#2563eb"></div>Mercury</button>
+  <button class="nav-item" onclick="filterTeam('Jupiter')"><div class="team-dot" style="background:#7c3aed"></div>Jupiter</button>
+  <button class="nav-item" onclick="filterTeam('Top Gun')"><div class="team-dot" style="background:#0d9488"></div>Top Gun</button>
+  <button class="nav-item" onclick="filterTeam('Maverick')"><div class="team-dot" style="background:#d97706"></div>Maverick</button>
+  <button class="nav-item" onclick="filterTeam('Delta')"><div class="team-dot" style="background:#dc2626"></div>Delta</button>
+  <button class="nav-item" onclick="filterTeam('Neptune')"><div class="team-dot" style="background:#0891b2"></div>Neptune</button>
+  <button class="nav-item" onclick="filterTeam('Mars')"><div class="team-dot" style="background:#ea580c"></div>Mars</button>
+</aside>
+
+<!-- Main -->
+<main class="main">
+
+  <!-- DASHBOARD -->
+  <div id="page-dashboard" class="page active">
+    <div class="page-header">
+      <h2>Team overview</h2>
+      <p id="dash-subtitle">Q2 2026 · hxgado / HxApps · Live from Azure DevOps</p>
+    </div>
+    <div id="dash-content">
+      <div class="state-box"><div class="spinner"></div><h3>Loading from Azure DevOps…</h3><p>Fetching Q2 work items across all teams</p></div>
+    </div>
+  </div>
+
+  <!-- TRACKER -->
+  <div id="page-tracker" class="page">
+    <div class="page-header">
+      <h2 id="tracker-heading">Status tracker</h2>
+      <p>Update, add, and remove work items. Export changes as CSV.</p>
+    </div>
+    <div id="change-bar" class="change-bar">
+      <span>⚠ <span id="change-count">0</span> unsaved changes</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" onclick="discardChanges()">Discard</button>
+        <button class="btn btn-sm btn-primary" onclick="exportCSV()">Export CSV</button>
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="toolbar">
+        <div class="toolbar-title" id="tracker-title">All items</div>
+        <input type="text" id="search" placeholder="Search ID, title, assignee…" oninput="renderTable()" style="width:175px">
+        <select id="f-team" onchange="renderTable()">
+          <option value="">All teams</option>
+          <option>Mercury</option><option>Jupiter</option><option>Top Gun</option>
+          <option>Maverick</option><option>Delta</option><option>Neptune</option><option>Mars</option>
+        </select>
+        <select id="f-type" onchange="renderTable()">
+          <option value="">All types</option>
+          <option>User Story</option><option>Task</option><option>Incident</option>
+          <option>Bug</option><option>Feature</option><option>Epic</option>
+        </select>
+        <select id="f-status" onchange="renderTable()">
+          <option value="">All statuses</option>
+          <option>Active</option><option>New</option><option>Closed</option>
+          <option>Ready</option><option>Accepted</option><option>Complete</option><option>Resolved</option>
+        </select>
+        <button class="btn btn-primary" onclick="openAddModal()">+ Add item</button>
+        <button class="btn" onclick="loadFromADO()" title="Refresh from ADO">↻ Refresh</button>
+      </div>
+      <div id="tracker-content">
+        <div class="state-box"><div class="spinner"></div><h3>Loading…</h3></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="page-settings" class="page">
+    <div class="page-header">
+      <h2>Settings</h2>
+      <p>Configure your Azure DevOps connection. Settings are saved in your browser.</p>
+    </div>
+    <div class="config-banner" style="background:#fff;border-color:var(--border)">
+      <h3 style="color:var(--text)">Azure DevOps Connection</h3>
+      <div class="config-grid">
+        <div class="config-field">
+          <label>Organization</label>
+          <input type="text" id="cfg-org" placeholder="e.g. hxgado">
+        </div>
+        <div class="config-field">
+          <label>Project</label>
+          <input type="text" id="cfg-project" placeholder="e.g. HxApps">
+        </div>
+        <div class="config-field" style="grid-column:1/-1">
+          <label>Personal Access Token (PAT)</label>
+          <input type="password" id="cfg-pat" placeholder="Paste your PAT here">
+        </div>
+        <div class="config-field">
+          <label>Iteration + Year → searches for Q2.2026</label>
+          <input type="text" id="cfg-q2" placeholder="e.g. Q2">
+        </div>
+        <div class="config-field">
+          <label>Year filter</label>
+          <input type="text" id="cfg-year" placeholder="e.g. 2026">
+        </div>
+      </div>
+      <div class="config-actions">
+        <button class="btn btn-primary" onclick="saveSettings()">Save & Reload</button>
+        <span class="config-note" id="settings-status"></span>
+      </div>
+      <p style="font-size:11px;color:var(--text-3);margin-top:12px">⚠ Your PAT is stored only in this browser's localStorage. Never share this file with the PAT already filled in — share a clean copy and let each person enter their own token, or use a shared read-only service token your team agrees on.</p>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="modal-title">Add item</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>ID</label><input type="text" id="f-id" placeholder="e.g. 83500"></div>
+      <div class="form-group"><label>Team</label>
+        <select id="f-team-m"><option>Mercury</option><option>Jupiter</option><option>Top Gun</option><option>Maverick</option><option>Delta</option><option>Neptune</option><option>Mars</option></select>
+      </div>
+      <div class="form-group"><label>Type</label>
+        <select id="f-type-m"><option>User Story</option><option>Task</option><option>Incident</option><option>Bug</option><option>Feature</option><option>Epic</option></select>
+      </div>
+      <div class="form-group"><label>Status</label>
+        <select id="f-status-m"><option>New</option><option>Active</option><option>Ready</option><option>Accepted</option><option>Closed</option><option>Complete</option><option>Resolved</option></select>
+      </div>
+      <div class="form-group full"><label>Title</label><input type="text" id="f-title" placeholder="Item title"></div>
+      <div class="form-group full"><label>Assignee</label><input type="text" id="f-assignee" placeholder="Full name"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItem()">Save item</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+const DEFAULT_CFG = { org:'hxgado', project:'HxApps', pat:'', q2:'Q2', year:'2026' };
+let cfg = { ...DEFAULT_CFG };
+
+function loadCfg() {
+  try { const s = localStorage.getItem('hxdash_cfg'); if (s) cfg = { ...DEFAULT_CFG, ...JSON.parse(s) }; } catch(e){}
+  document.getElementById('cfg-org').value = cfg.org;
+  document.getElementById('cfg-project').value = cfg.project;
+  document.getElementById('cfg-pat').value = cfg.pat;
+  document.getElementById('cfg-q2').value = cfg.q2;
+  document.getElementById('cfg-year').value = cfg.year;
+}
+
+function saveSettings() {
+  cfg.org = document.getElementById('cfg-org').value.trim();
+  cfg.project = document.getElementById('cfg-project').value.trim();
+  cfg.pat = document.getElementById('cfg-pat').value.trim();
+  cfg.q2 = document.getElementById('cfg-q2').value.trim() || 'Q2';
+  cfg.year = document.getElementById('cfg-year').value.trim() || '2026';
+  try { localStorage.setItem('hxdash_cfg', JSON.stringify(cfg)); } catch(e){}
+  document.getElementById('settings-status').textContent = '✓ Saved! Reloading data…';
+  setTimeout(() => { document.getElementById('settings-status').textContent = ''; loadFromADO(); }, 800);
+}
+
+// ── ADO API ──────────────────────────────────────────────────────────────────
+const TEAMS = ['Mercury','Jupiter','Top Gun','Maverick','Delta','Neptune','Mars'];
+const STATUS_META = {
+  Active:   {bg:'#eff6ff',text:'#1d4ed8',dot:'#2563eb'},
+  New:      {bg:'#fffbeb',text:'#b45309',dot:'#d97706'},
+  Closed:   {bg:'#f0fdf4',text:'#15803d',dot:'#16a34a'},
+  Ready:    {bg:'#f5f3ff',text:'#6d28d9',dot:'#7c3aed'},
+  Accepted: {bg:'#eff6ff',text:'#1e40af',dot:'#3b82f6'},
+  Complete: {bg:'#f0fdf4',text:'#0f766e',dot:'#0d9488'},
+  Resolved: {bg:'#f9fafb',text:'#4b5563',dot:'#6b7280'},
+};
+const TYPE_COLOR = {'User Story':'#7c3aed','Task':'#6b7280','Incident':'#d97706','Bug':'#dc2626','Feature':'#2563eb','Epic':'#0d9488','Issue':'#d97706'};
+const TEAM_DOT = {Mercury:'#2563eb',Jupiter:'#7c3aed','Top Gun':'#0d9488',Maverick:'#d97706',Delta:'#dc2626',Neptune:'#0891b2',Mars:'#ea580c'};
+
+let allItems = [];
+let changes = {};
+let editingId = null;
+let page = 0;
+const PAGE = 20;
+let sortKey = '', sortDir = 1;
+let activeTeamFilter = '';
+
+function b64(pat) { return btoa(':' + pat); }
+
+async function adoWIQL(wiql) {
+  const url = `https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/wiql?api-version=7.0`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Basic ' + b64(cfg.pat), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: wiql })
+  });
+  if (!r.ok) throw new Error(`WIQL query failed: ${r.status} ${r.statusText}`);
+  return r.json();
+}
+
+async function adoGetItems(ids) {
+  if (!ids.length) return [];
+  const fields = 'System.Id,System.Title,System.State,System.WorkItemType,System.AssignedTo,System.TeamProject,System.AreaPath,System.IterationPath,Microsoft.VSTS.Common.Priority,Microsoft.VSTS.Scheduling.StoryPoints';
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += 200) chunks.push(ids.slice(i, i+200));
+  let results = [];
+  for (const chunk of chunks) {
+    const url = `https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/workitems?ids=${chunk.join(',')}&fields=${fields}&api-version=7.0`;
+    const r = await fetch(url, { headers: { 'Authorization': 'Basic ' + b64(cfg.pat) } });
+    if (!r.ok) throw new Error(`Work items fetch failed: ${r.status}`);
+    const d = await r.json();
+    results = results.concat(d.value || []);
+  }
+  return results;
+}
+
+function parseTeamFromArea(areaPath) {
+  if (!areaPath) return 'Unknown';
+  // Match 'Team Mercury', 'Team Jupiter', 'Team Top Gun' etc
+  const lower = areaPath.toLowerCase();
+  for (const t of TEAMS) {
+    if (lower.includes('team ' + t.toLowerCase())) return t;
+    if (lower.includes(t.toLowerCase())) return t;
+  }
+  return areaPath.split('\\').pop().replace(/^Team\s+/i,'') || 'Unknown';
+}
+
+async function loadFromADO() {
+  if (!cfg.pat) {
+    showNoPATState();
+    return;
+  }
+  setLoadingState();
+  try {
+    const wiql = `SELECT [System.Id] FROM WorkItems 
+      WHERE [System.TeamProject] = '${cfg.project}' 
+      AND [System.IterationPath] CONTAINS '${cfg.q2}.${cfg.year}'
+      ORDER BY [System.ChangedDate] DESC`;
+
+    const wiqlResult = await adoWIQL(wiql);
+    const ids = (wiqlResult.workItems || []).map(w => w.id);
+
+    if (!ids.length) {
+      setEmptyState();
+      return;
+    }
+
+    const raw = await adoGetItems(ids);
+    allItems = raw.map(w => {
+      const f = w.fields;
+      const assignedTo = f['System.AssignedTo'];
+      const assignee = typeof assignedTo === 'object' ? (assignedTo?.displayName || '') : (assignedTo || '');
+      const team = parseTeamFromArea(f['System.AreaPath']);
+      return {
+        id: String(w.id),
+        team,
+        type: f['System.WorkItemType'] || 'Task',
+        title: f['System.Title'] || '',
+        assignee,
+        status: f['System.State'] || 'New',
+        original: f['System.State'] || 'New',
+        iterationPath: f['System.IterationPath'] || '',
+        storyPoints: f['Microsoft.VSTS.Scheduling.StoryPoints'] || 0,
+      };
+    });
+
+    changes = {};
+    page = 0;
+    renderDashboard();
+    renderTable();
+    showToast(`✓ Loaded ${allItems.length} items from ADO`);
+  } catch(err) {
+    setErrorState(err.message);
+  }
+}
+
+// ── State renderers ──────────────────────────────────────────────────────────
+function setLoadingState() {
+  document.getElementById('dash-content').innerHTML = `<div class="state-box"><div class="spinner"></div><h3>Loading from Azure DevOps…</h3><p>Fetching Q2 ${cfg.year} work items across all teams</p></div>`;
+  document.getElementById('tracker-content').innerHTML = `<div class="state-box"><div class="spinner"></div><h3>Loading…</h3></div>`;
+}
+
+function showNoPATState() {
+  const html = `<div class="state-box">
+    <div class="icon">🔑</div>
+    <h3>No PAT configured</h3>
+    <p>Go to <strong>Settings</strong> and enter your Azure DevOps Personal Access Token to load live data.</p>
+    <br><button class="btn btn-primary" onclick="showPage('settings',null)" style="margin-top:8px">Open Settings</button>
+  </div>`;
+  document.getElementById('dash-content').innerHTML = html;
+  document.getElementById('tracker-content').innerHTML = html;
+}
+
+function setErrorState(msg) {
+  const html = `<div class="state-box">
+    <div class="icon">⚠️</div>
+    <h3>Could not connect to Azure DevOps</h3>
+    <p style="color:#dc2626;font-family:monospace;font-size:11px;margin:8px 0">${msg}</p>
+    <p>Check your PAT and org/project in <strong>Settings</strong>, or make sure the PAT has Work Items → Read scope.</p>
+    <br><button class="btn btn-primary" onclick="showPage('settings',null)" style="margin-top:8px">Open Settings</button>
+  </div>`;
+  document.getElementById('dash-content').innerHTML = html;
+  document.getElementById('tracker-content').innerHTML = html;
+}
+
+function setEmptyState() {
+  const html = `<div class="state-box"><div class="icon">📭</div><h3>No items found</h3><p>No Q2 ${cfg.year} work items were returned. Check your iteration path filter in Settings.</p></div>`;
+  document.getElementById('dash-content').innerHTML = html;
+  document.getElementById('tracker-content').innerHTML = html;
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+const chartInstances = {};
+function mkChart(id, config) {
+  if (chartInstances[id]) chartInstances[id].destroy();
+  const el = document.getElementById(id);
+  if (el) chartInstances[id] = new Chart(el, config);
+}
+const gc = '#e8e7e1', tc = '#9a9890';
+const DONUT_COLORS = {Active:'#2563eb',New:'#d97706',Closed:'#16a34a',Ready:'#7c3aed',Accepted:'#3b82f6',Complete:'#0d9488',Resolved:'#6b7280'};
+
+function renderDashboard() {
+  const items = allItems;
+  const closed = items.filter(i=>['Closed','Complete'].includes(i.status)).length;
+  const pct = items.length ? Math.round(closed/items.length*100) : 0;
+
+  // Metrics
+  const metricsHtml = `
+    <div class="metrics">
+      <div class="metric"><div class="val">${items.length}</div><div class="lbl">Total items</div></div>
+      <div class="metric"><div class="val" style="color:#2563eb">${items.filter(i=>i.status==='Active').length}</div><div class="lbl">Active</div></div>
+      <div class="metric"><div class="val" style="color:#d97706">${items.filter(i=>i.status==='New').length}</div><div class="lbl">New</div></div>
+      <div class="metric"><div class="val" style="color:#16a34a">${closed}</div><div class="lbl">Closed/Complete</div></div>
+      <div class="metric"><div class="val" style="color:#0d9488">${pct}%</div><div class="lbl">Completion</div></div>
+      <div class="metric"><div class="val">${[...new Set(items.map(i=>i.assignee).filter(Boolean))].length}</div><div class="lbl">Contributors</div></div>
+    </div>`;
+
+  // Legend
+  const legendHtml = `<div class="legend">
+    ${Object.entries(STATUS_META).map(([s,m])=>`<div class="leg"><div class="leg-dot" style="background:${m.dot}"></div><span style="color:${m.text};font-weight:600">${s}</span></div>`).join('')}
+  </div>`;
+
+  // Per-team status donuts
+  const teamCardsHtml = `<div class="charts-grid" style="grid-template-columns:repeat(3,1fr)">
+    ${TEAMS.map(t=>{
+      const ti = items.filter(i=>i.team===t);
+      if (!ti.length) return '';
+      return `<div class="chart-card">
+        <h3><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${TEAM_DOT[t]||'#888'};margin-right:6px;vertical-align:2px"></span>${t}</h3>
+        <p>${ti.length} items</p>
+        <canvas id="ch-${t.replace(/\s/g,'')}" height="140"></canvas>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+          ${Object.entries(DONUT_COLORS).map(([s,c])=>{const n=ti.filter(i=>i.status===s).length;return n?`<span style="font-size:10px;color:#6b7280"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c};margin-right:3px"></span>${s} ${n}</span>`:''}).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  // Type chart data
+  const types = ['User Story','Task','Incident','Bug','Feature'];
+  const typeData = TEAMS.map(t=>({
+    team: t,
+    ...Object.fromEntries(types.map(ty=>[ty, items.filter(i=>i.team===t&&i.type===ty).length]))
+  })).filter(d=>TEAMS.some(t=>d.team===t&&items.filter(i=>i.team===t).length>0));
+
+  // SP top assignees
+  const spMap = {};
+  items.forEach(i=>{ if(i.storyPoints && i.assignee) spMap[i.assignee] = (spMap[i.assignee]||0)+i.storyPoints; });
+  const spTop = Object.entries(spMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const spMax = spTop[0]?.[1] || 1;
+  const spColors = ['#2563eb','#7c3aed','#0d9488','#d97706','#dc2626','#0891b2','#ea580c','#16a34a','#6b7280','#3b82f6'];
+
+  const spHtml = spTop.length ? `<div class="chart-card" style="margin-bottom:14px">
+    <h3>Story points by assignee — all teams</h3>
+    <p>Top contributors by Q2 story points</p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+      ${spTop.map(([n,p],i)=>`<div style="display:flex;align-items:center;gap:10px">
+        <div style="width:140px;font-size:11px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">${n}</div>
+        <div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.round(p/spMax*100)}%;background:${spColors[i%spColors.length]}"></div></div>
+        <div style="width:26px;font-size:11px;font-weight:500;text-align:right;flex-shrink:0">${p}</div>
+      </div>`).join('')}
+    </div>
+  </div>` : '';
+
+  const typeChartHtml = `<div class="chart-card" style="margin-bottom:14px">
+    <h3>Work type mix — all teams</h3>
+    <p>Distribution of work item types per team</p>
+    <canvas id="ch-types" height="180"></canvas>
+  </div>`;
+
+  document.getElementById('dash-content').innerHTML = metricsHtml + legendHtml + teamCardsHtml + typeChartHtml + spHtml;
+
+  // Draw donuts
+  TEAMS.forEach(t => {
+    const ti = items.filter(i=>i.team===t);
+    if (!ti.length) return;
+    const counts = Object.entries(DONUT_COLORS).map(([s,c])=>({name:s,value:ti.filter(i=>i.status===s).length,color:c})).filter(d=>d.value>0);
+    mkChart('ch-'+t.replace(/\s/g,''), {
+      type:'doughnut',
+      data:{ labels:counts.map(d=>d.name), datasets:[{data:counts.map(d=>d.value),backgroundColor:counts.map(d=>d.color),borderWidth:2,borderColor:'#fff'}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw}`}}}}
+    });
+  });
+
+  // Type bar chart
+  mkChart('ch-types', {
+    type:'bar',
+    data:{
+      labels: items.length ? [...new Set(allItems.filter(i=>TEAMS.includes(i.team)).map(i=>i.team))] : TEAMS,
+      datasets: types.map((ty,i)=>({
+        label:ty,
+        data: TEAMS.map(t=>items.filter(i=>i.team===t&&i.type===ty).length).filter((_,idx)=>items.filter(i=>i.team===TEAMS[idx]).length>0),
+        backgroundColor:[TYPE_COLOR[ty]||'#888'],
+        borderRadius:3,borderWidth:0
+      }))
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:tc,font:{size:10},boxWidth:9,boxHeight:9}}},
+      scales:{x:{ticks:{color:tc,font:{size:10}},grid:{color:gc}},y:{ticks:{color:tc,font:{size:10}},grid:{color:gc},beginAtZero:true}}}
+  });
+}
+
+// ── Tracker ──────────────────────────────────────────────────────────────────
+function getFiltered() {
+  const q = (document.getElementById('search')?.value||'').toLowerCase();
+  const tf = document.getElementById('f-team')?.value||'';
+  const ty = document.getElementById('f-type')?.value||'';
+  const sf = document.getElementById('f-status')?.value||'';
+  let res = allItems.filter(it=>{
+    if(q && !it.id.includes(q) && !it.title.toLowerCase().includes(q) && !it.assignee.toLowerCase().includes(q)) return false;
+    if(tf && it.team!==tf) return false;
+    if(ty && it.type!==ty) return false;
+    if(sf && it.status!==sf) return false;
+    return true;
+  });
+  if(sortKey) res=[...res].sort((a,b)=>{
+    const av=(a[sortKey]||'').toString().toLowerCase(),bv=(b[sortKey]||'').toString().toLowerCase();
+    return av<bv?-sortDir:av>bv?sortDir:0;
+  });
+  return res;
+}
+
+function renderTable() {
+  const filtered = getFiltered();
+  const total = filtered.length;
+  const maxPage = Math.max(0,Math.ceil(total/PAGE)-1);
+  if(page>maxPage) page=maxPage;
+  const slice = filtered.slice(page*PAGE,(page+1)*PAGE);
+
+  const statusLegend = `<div class="legend" style="margin:12px 14px 0">
+    ${Object.entries(STATUS_META).map(([s,m])=>`<div class="leg"><div class="leg-dot" style="background:${m.dot}"></div><span style="color:${m.text};font-weight:600">${s}</span><span style="color:#d1d5db;margin:0 2px">—</span><span>${{Active:'in progress',New:'not started',Closed:'done & verified',Ready:'queued',Accepted:'approved',Complete:'delivered',Resolved:'fixed'}[s]||s}</span></div>`).join('')}
+  </div>`;
+
+  const tableHtml = `
+    ${statusLegend}
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th onclick="doSort('id')" style="width:65px">ID ${sortKey==='id'?(sortDir>0?'↑':'↓'):'↕'}</th>
+        <th onclick="doSort('team')" style="width:80px">Team ${sortKey==='team'?(sortDir>0?'↑':'↓'):'↕'}</th>
+        <th style="width:95px">Type</th>
+        <th>Title</th>
+        <th style="width:120px">Assignee</th>
+        <th onclick="doSort('status')" style="width:115px">Status ${sortKey==='status'?(sortDir>0?'↑':'↓'):'↕'}</th>
+        <th style="width:75px">Actions</th>
+      </tr></thead>
+      <tbody>
+        ${slice.length===0?`<tr><td colspan="7" style="padding:32px;text-align:center;color:#9a9890">No items match your filters.</td></tr>`:''}
+        ${slice.map(it=>{
+          const changed = it.status!==it.original;
+          const sm = STATUS_META[it.status]||STATUS_META.New;
+          const tc2 = TYPE_COLOR[it.type]||'#6b7280';
+          const opts = Object.keys(STATUS_META).map(s=>`<option value="${s}"${it.status===s?' selected':''}>${s}</option>`).join('');
+          return `<tr${changed?' class="changed"':''}>
+            <td style="font-size:11px;color:#9a9890;font-variant-numeric:tabular-nums">${it.id}</td>
+            <td style="font-size:11px;color:#5c5a54">${it.team}</td>
+            <td><span style="background:${tc2}18;color:${tc2};padding:2px 7px;border-radius:20px;font-size:10px">${it.type}</span></td>
+            <td><div class="cell-title" title="${it.title.replace(/"/g,'&quot;')}">${it.title}</div></td>
+            <td style="font-size:11px;color:#5c5a54">${it.assignee||'—'}</td>
+            <td><select class="status-sel" style="background:${sm.bg};color:${sm.text};border-color:${sm.dot}40" onchange="updateStatus('${it.id}',this.value)">${opts}</select></td>
+            <td><div style="display:flex;gap:5px">
+              <button class="btn btn-sm" onclick="openEditModal('${it.id}')" title="Edit">✎</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteItem('${it.id}')" title="Delete">✕</button>
+            </div></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+    <div class="pagination">
+      <span>${total===0?'No results':`${page*PAGE+1}–${Math.min((page+1)*PAGE,total)} of ${total}`}</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="changePage(-1)" ${page===0?'disabled':''}>← Prev</button>
+        <button class="btn btn-sm" onclick="changePage(1)" ${page>=maxPage?'disabled':''}>Next →</button>
+      </div>
+    </div>`;
+
+  document.getElementById('tracker-content').innerHTML = tableHtml;
+
+  const cc = Object.keys(changes).length;
+  const bar = document.getElementById('change-bar');
+  if(bar){ bar.classList.toggle('show',cc>0); document.getElementById('change-count').textContent=cc; }
+}
+
+function doSort(k){ sortKey===k?sortDir*=-1:(sortKey=k,sortDir=1); renderTable(); }
+function changePage(d){ page+=d; renderTable(); }
+
+function updateStatus(id, newStatus) {
+  const it = allItems.find(i=>i.id===id);
+  if(!it) return;
+  it.status = newStatus;
+  if(newStatus!==it.original) changes[id]={id,title:it.title,team:it.team,from:it.original,to:newStatus};
+  else delete changes[id];
+  renderTable();
+  renderDashboard();
+}
+
+function discardChanges(){
+  allItems.forEach(it=>{it.status=it.original;});
+  changes={};
+  renderTable();
+  renderDashboard();
+  showToast('Changes discarded');
+}
+
+function exportCSV(){
+  const rows=[['ID','Team','Type','Title','Assignee','Old Status','New Status']];
+  Object.values(changes).forEach(c=>{
+    const it=allItems.find(i=>i.id===c.id);
+    if(it) rows.push([c.id,it.team,it.type,`"${it.title}"`,it.assignee,c.from,c.to]);
+  });
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`status_updates_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  showToast('CSV exported');
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+function openAddModal(){
+  editingId=null;
+  document.getElementById('modal-title').textContent='Add item';
+  document.getElementById('f-id').value=''; document.getElementById('f-id').disabled=false;
+  document.getElementById('f-title').value=''; document.getElementById('f-assignee').value='';
+  document.getElementById('f-team-m').value='Mercury';
+  document.getElementById('f-type-m').value='User Story';
+  document.getElementById('f-status-m').value='New';
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function openEditModal(id){
+  const it=allItems.find(i=>i.id===id); if(!it) return;
+  editingId=id;
+  document.getElementById('modal-title').textContent='Edit item';
+  document.getElementById('f-id').value=it.id; document.getElementById('f-id').disabled=true;
+  document.getElementById('f-title').value=it.title; document.getElementById('f-assignee').value=it.assignee;
+  document.getElementById('f-team-m').value=it.team;
+  document.getElementById('f-type-m').value=it.type;
+  document.getElementById('f-status-m').value=it.status;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('show'); }
+function saveItem(){
+  const id=document.getElementById('f-id').value.trim();
+  const title=document.getElementById('f-title').value.trim();
+  if(!id||!title){showToast('ID and Title are required');return;}
+  if(editingId){
+    const it=allItems.find(i=>i.id===editingId);
+    if(it){it.title=title;it.assignee=document.getElementById('f-assignee').value.trim();it.team=document.getElementById('f-team-m').value;it.type=document.getElementById('f-type-m').value;it.status=document.getElementById('f-status-m').value;}
+    showToast('Item updated');
+  } else {
+    if(allItems.find(i=>i.id===id)){showToast('ID already exists');return;}
+    allItems.unshift({id,team:document.getElementById('f-team-m').value,type:document.getElementById('f-type-m').value,title,assignee:document.getElementById('f-assignee').value.trim(),status:document.getElementById('f-status-m').value,original:document.getElementById('f-status-m').value,storyPoints:0});
+    showToast('Item added');
+  }
+  closeModal(); renderTable(); renderDashboard();
+}
+function deleteItem(id){
+  if(!confirm(`Delete item ${id}?`)) return;
+  allItems=allItems.filter(i=>i.id!==id); delete changes[id];
+  renderTable(); renderDashboard(); showToast('Item deleted');
+}
+
+// ── Nav ──────────────────────────────────────────────────────────────────────
+function showPage(name, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(el) el.classList.add('active');
+}
+function filterTeam(t){
+  showPage('tracker',null);
+  document.getElementById('f-team').value=t;
+  document.getElementById('tracker-heading').textContent=t+' items';
+  activeTeamFilter=t; page=0; renderTable();
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+loadCfg();
+loadFromADO();
+</script>
+</body>
+</html>
