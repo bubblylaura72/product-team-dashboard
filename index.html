@@ -334,7 +334,7 @@ const PAGE = 20;
 let sortKey = '', sortDir = 1;
 let activeTeamFilter = '';
 
-function b64(pat) { return btoa(':' + pat); }
+function b64(pat) { return btoa(unescape(encodeURIComponent(':' + pat))); }
 
 async function adoWIQL(wiql) {
   const url = `https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/wiql?api-version=7.0`;
