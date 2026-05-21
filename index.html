@@ -503,7 +503,7 @@ function renderDashboard() {
       return `<div class="chart-card">
         <h3><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${TEAM_DOT[t]||'#888'};margin-right:6px;vertical-align:2px"></span>${t}</h3>
         <p>${ti.length} items</p>
-        <canvas id="ch-${t.replace(/\s/g,'')}" height="140"></canvas>
+        <canvas id="ch-${t.replace(/\s/g,'')}" style="display:block;width:100%;height:160px"></canvas>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
           ${Object.entries(DONUT_COLORS).map(([s,c])=>{const n=ti.filter(i=>i.status===s).length;return n?`<span style="font-size:10px;color:#6b7280"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c};margin-right:3px"></span>${s} ${n}</span>`:''}).join('')}
         </div>
@@ -544,6 +544,7 @@ function renderDashboard() {
   </div>`;
 
   document.getElementById('dash-content').innerHTML = metricsHtml + legendHtml + teamCardsHtml + typeChartHtml + spHtml;
+  setTimeout(() => {
 
   // Draw donuts
   TEAMS.forEach(t => {
@@ -571,7 +572,7 @@ function renderDashboard() {
     },
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:tc,font:{size:10},boxWidth:9,boxHeight:9}}},
       scales:{x:{ticks:{color:tc,font:{size:10}},grid:{color:gc}},y:{ticks:{color:tc,font:{size:10}},grid:{color:gc},beginAtZero:true}}}
-  });
+  }, 150);
 }
 
 // ── Tracker ──────────────────────────────────────────────────────────────────
