@@ -155,11 +155,13 @@
     Settings
   </button>
   <div class="nav-section">Teams</div>
-  <button class="nav-item" onclick="filterTeam('DIS')"><div class="team-dot" style="background:#6b7280"></div>DIS</button>
-  <button class="nav-item" onclick="filterTeam('HxPro')"><div class="team-dot" style="background:#0891b2"></div>HxPro</button>
-  <button class="nav-item" onclick="filterTeam('Portals')"><div class="team-dot" style="background:#16a34a"></div>Portals</button>
-  <button class="nav-item" onclick="filterTeam('HxApps')"><div class="team-dot" style="background:#7c3aed"></div>HxApps</button>
-  <button class="nav-item" onclick="filterTeam('Venus')"><div class="team-dot" style="background:#db2777"></div>Venus</button>
+  <button class="nav-item" onclick="filterTeam('Mercury')"><div class="team-dot" style="background:#6b7280"></div>Mercury</button>
+  <button class="nav-item" onclick="filterTeam('Jupiter')"><div class="team-dot" style="background:#0891b2"></div>Jupiter</button>
+  <button class="nav-item" onclick="filterTeam('Top Gun')"><div class="team-dot" style="background:#16a34a"></div>Top Gun</button>
+  <button class="nav-item" onclick="filterTeam('Maverick')"><div class="team-dot" style="background:#7c3aed"></div>Maverick</button>
+  <button class="nav-item" onclick="filterTeam('Delta')"><div class="team-dot" style="background:#d97706"></div>Delta</button>
+  <button class="nav-item" onclick="filterTeam('Neptune')"><div class="team-dot" style="background:#db2777"></div>Neptune</button>
+  <button class="nav-item" onclick="filterTeam('Mars')"><div class="team-dot" style="background:#dc2626"></div>Mars</button>
 </aside>
 
 <!-- Main -->
@@ -265,7 +267,7 @@
     <div class="form-grid">
       <div class="form-group"><label>ID</label><input type="text" id="f-id" placeholder="e.g. 83500"></div>
       <div class="form-group"><label>Team</label>
-        <select id="f-team-m"><option>DIS</option><option>HxPro</option><option>Portals</option><option>HxApps</option><option>Venus</option></select>
+        <select id="f-team-m"><option>Mercury</option><option>Jupiter</option><option>Top Gun</option><option>Maverick</option><option>Delta</option><option>Neptune</option><option>Mars</option></select>
       </div>
       <div class="form-group"><label>Type</label>
         <select id="f-type-m"><option>User Story</option><option>Task</option><option>Incident</option><option>Bug</option><option>Feature</option><option>Epic</option></select>
@@ -312,7 +314,7 @@ function saveSettings() {
 }
 
 // ── ADO API ──────────────────────────────────────────────────────────────────
-const TEAMS = ['DIS','HxPro','Portals','HxApps','Venus'];
+const TEAMS = ['Mercury','Jupiter','Top Gun','Maverick','Delta','Neptune','Mars'];
 const STATUS_META = {
   Active:{bg:'#eff6ff',text:'#1d4ed8',dot:'#2563eb'},New:{bg:'#fffbeb',text:'#b45309',dot:'#d97706'},
   Closed:{bg:'#f0fdf4',text:'#15803d',dot:'#16a34a'},Ready:{bg:'#f5f3ff',text:'#6d28d9',dot:'#7c3aed'},
@@ -320,7 +322,7 @@ const STATUS_META = {
   Resolved:{bg:'#f9fafb',text:'#4b5563',dot:'#6b7280'},
 };
 const TYPE_COLOR = {'User Story':'#7c3aed','Task':'#6b7280','Incident':'#d97706','Bug':'#dc2626','Feature':'#2563eb','Epic':'#0d9488'};
-const TEAM_DOT = {DIS:'#6b7280',HxPro:'#0891b2',Portals:'#16a34a',HxApps:'#7c3aed',Venus:'#db2777'};
+const TEAM_DOT = {Mercury:'#6b7280',Jupiter:'#0891b2','Top Gun':'#16a34a',Maverick:'#7c3aed',Delta:'#d97706',Neptune:'#db2777',Mars:'#dc2626'};
 const DONUT_COLORS = {Active:'#2563eb',New:'#d97706',Closed:'#16a34a',Ready:'#7c3aed',Accepted:'#3b82f6',Complete:'#0d9488',Resolved:'#6b7280'};
 let allItems = [];
 let changes = {};
