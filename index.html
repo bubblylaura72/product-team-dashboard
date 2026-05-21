@@ -162,6 +162,10 @@
   <button class="nav-item" onclick="filterTeam('Delta')"><div class="team-dot" style="background:#dc2626"></div>Delta</button>
   <button class="nav-item" onclick="filterTeam('Neptune')"><div class="team-dot" style="background:#0891b2"></div>Neptune</button>
   <button class="nav-item" onclick="filterTeam('Mars')"><div class="team-dot" style="background:#ea580c"></div>Mars</button>
+  <button class="nav-item" onclick="filterTeam('DIS')"><div class="team-dot" style="background:#6b7280"></div>DIS</button>
+  <button class="nav-item" onclick="filterTeam('HxPro')"><div class="team-dot" style="background:#0891b2"></div>HxPro</button>
+  <button class="nav-item" onclick="filterTeam('Portals')"><div class="team-dot" style="background:#16a34a"></div>Portals</button>
+  <button class="nav-item" onclick="filterTeam('Venus')"><div class="team-dot" style="background:#db2777"></div>Venus</button>
 </aside>
 
 <!-- Main -->
@@ -267,7 +271,7 @@
     <div class="form-grid">
       <div class="form-group"><label>ID</label><input type="text" id="f-id" placeholder="e.g. 83500"></div>
       <div class="form-group"><label>Team</label>
-        <select id="f-team-m"><option>Mercury</option><option>Jupiter</option><option>Top Gun</option><option>Maverick</option><option>Delta</option><option>Neptune</option><option>Mars</option></select>
+        <select id="f-team-m"><option>Mercury</option><option>Jupiter</option><option>Top Gun</option><option>Maverick</option><option>Delta</option><option>Neptune</option><option>Mars</option><option>DIS</option><option>HxPro</option><option>Portals</option><option>Venus</option></select>
       </div>
       <div class="form-group"><label>Type</label>
         <select id="f-type-m"><option>User Story</option><option>Task</option><option>Incident</option><option>Bug</option><option>Feature</option><option>Epic</option></select>
@@ -313,7 +317,7 @@ function saveSettings() {
 }
 
 // ── ADO API ──────────────────────────────────────────────────────────────────
-const TEAMS = ['Mercury','Jupiter','Top Gun','Maverick','Delta','Neptune','Mars'];
+const TEAMS = ['Mercury','Jupiter','Top Gun','Maverick','Delta','Neptune','Mars','DIS','HxPro','Portals','HxApps','Venus'];
 const STATUS_META = {
   Active:   {bg:'#eff6ff',text:'#1d4ed8',dot:'#2563eb'},
   New:      {bg:'#fffbeb',text:'#b45309',dot:'#d97706'},
@@ -324,7 +328,7 @@ const STATUS_META = {
   Resolved: {bg:'#f9fafb',text:'#4b5563',dot:'#6b7280'},
 };
 const TYPE_COLOR = {'User Story':'#7c3aed','Task':'#6b7280','Incident':'#d97706','Bug':'#dc2626','Feature':'#2563eb','Epic':'#0d9488','Issue':'#d97706'};
-const TEAM_DOT = {Mercury:'#2563eb',Jupiter:'#7c3aed','Top Gun':'#0d9488',Maverick:'#d97706',Delta:'#dc2626',Neptune:'#0891b2',Mars:'#ea580c'};
+const TEAM_DOT = {Mercury:'#2563eb',Jupiter:'#7c3aed','Top Gun':'#0d9488',Maverick:'#d97706',Delta:'#dc2626',Neptune:'#0891b2',Mars:'#ea580c',DIS:'#6b7280',HxPro:'#0891b2',Portals:'#16a34a',HxApps:'#7c3aed',Venus:'#db2777'};
 
 let allItems = [];
 let changes = {};
@@ -369,13 +373,14 @@ async function adoGetItems(ids) {
 
 function parseTeamFromArea(areaPath) {
   if (!areaPath) return 'Unknown';
-  // Match 'Team Mercury', 'Team Jupiter', 'Team Top Gun' etc
-  const lower = areaPath.toLowerCase();
-  for (const t of TEAMS) {
-    if (lower.includes('team ' + t.toLowerCase())) return t;
-    if (lower.includes(t.toLowerCase())) return t;
+  const parts = areaPath.split('\\');
+  // Look for 'Team X' pattern first
+  for (const part of parts) {
+    const m = part.match(/^Teams+(.+)/i);
+    if (m) return m[1].trim();
   }
-  return areaPath.split('\\').pop().replace(/^Team\s+/i,'') || 'Unknown';
+  // Otherwise return last segment
+  return parts[parts.length - 1] || 'Unknown';
 }
 
 async function loadFromADO() {
