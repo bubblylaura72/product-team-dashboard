@@ -337,7 +337,7 @@ let activeTeamFilter = '';
 function b64(pat) { return btoa(unescape(encodeURIComponent(':' + pat))); }
 
 async function adoWIQL(wiql) {
-  const url = `https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/wiql?api-version=7.0`;
+  const url = `https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/wiql?$top=500&api-version=7.0`;
   const r = await fetch(url, {
     method: 'POST',
     headers: { 'Authorization': 'Basic ' + b64(cfg.pat), 'Content-Type': 'application/json' },
@@ -349,13 +349,17 @@ async function adoWIQL(wiql) {
 
 async function adoGetItems(ids) {
   if (!ids.length) return [];
-  const fields = 'System.Id,System.Title,System.State,System.WorkItemType,System.AssignedTo,System.TeamProject,System.AreaPath,System.IterationPath,Microsoft.VSTS.Common.Priority,Microsoft.VSTS.Scheduling.StoryPoints';
+  const fields = ['System.Id','System.Title','System.State','System.WorkItemType','System.AssignedTo','System.AreaPath','System.IterationPath','Microsoft.VSTS.Scheduling.StoryPoints'];
   const chunks = [];
   for (let i = 0; i < ids.length; i += 200) chunks.push(ids.slice(i, i+200));
   let results = [];
   for (const chunk of chunks) {
-    const url = `https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/workitems?ids=${chunk.join(',')}&fields=${fields}&api-version=7.0`;
-    const r = await fetch(url, { headers: { 'Authorization': 'Basic ' + b64(cfg.pat) } });
+    const url = `https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/workitemsbatch?api-version=7.0`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': 'Basic ' + b64(cfg.pat), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: chunk, fields })
+    });
     if (!r.ok) throw new Error(`Work items fetch failed: ${r.status}`);
     const d = await r.json();
     results = results.concat(d.value || []);
@@ -381,7 +385,7 @@ async function loadFromADO() {
   }
   setLoadingState();
   try {
-    const wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${cfg.project}' ORDER BY [System.ChangedDate] DESC`;
+    const wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${cfg.project}' ORDER BY [System.ChangedDate] DESC`; // top 500
 
     const wiqlResult = await adoWIQL(wiql);
     const ids = (wiqlResult.workItems || []).map(w => w.id);
