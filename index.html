@@ -314,7 +314,7 @@ function saveSettings() {
 }
 
 // ── ADO API ──────────────────────────────────────────────────────────────────
-const TEAMS = ['Mercury','Jupiter','Top Gun','Maverick','Delta','Neptune','Mars'];
+let TEAMS = []; // populated dynamically from ADO data
 const STATUS_META = {
   Active:{bg:'#eff6ff',text:'#1d4ed8',dot:'#2563eb'},New:{bg:'#fffbeb',text:'#b45309',dot:'#d97706'},
   Closed:{bg:'#f0fdf4',text:'#15803d',dot:'#16a34a'},Ready:{bg:'#f5f3ff',text:'#6d28d9',dot:'#7c3aed'},
@@ -355,19 +355,25 @@ async function adoGetItems(ids) {
   return results;
 }
 
-function parseTeamFromArea(areaPath) {
-  if (!areaPath) return 'Unknown';
-  const parts = areaPath.split('\\');
+function parseTeamFromArea(areaPath, iterationPath) {
+  // Team name lives in iteration path as "Team Jupiter" etc.
+  const pathToCheck = iterationPath || areaPath || '';
+  const parts = pathToCheck.split('\\');
   for (const part of parts) {
     const m = part.match(/^Team\s+(.+)/i);
     if (m) return m[1].trim();
   }
-  // Match known teams directly
-  const lower = areaPath.toLowerCase();
-  for (const t of TEAMS) {
-    if (lower.includes(t.toLowerCase())) return t;
+  // Fall back to last segment of iteration path
+  if (iterationPath) {
+    const iParts = iterationPath.split('\\');
+    // return second-to-last non-quarter segment if possible
+    for (let i = iParts.length - 1; i >= 0; i--) {
+      if (!iParts[i].match(/^Q\d/i) && iParts[i] !== '' && !iParts[i].match(/^\d{4}$/)) {
+        return iParts[i];
+      }
+    }
   }
-  return parts[parts.length-1] || 'Unknown';
+  return 'Unknown';
 }
 
 function setLoadingState() {
@@ -393,6 +399,32 @@ function setEmptyState() {
   document.getElementById('tracker-content').innerHTML = html;
 }
 
+const TEAM_COLORS = ['#6b7280','#0891b2','#16a34a','#7c3aed','#d97706','#db2777','#dc2626','#2563eb','#0d9488','#ea580c'];
+
+function rebuildTeamUI() {
+  // Rebuild sidebar team nav
+  const navSection = document.querySelector('.nav-section');
+  // Remove old team buttons after nav-section
+  let el = navSection.nextElementSibling;
+  while (el && el.classList.contains('nav-item')) { const next = el.nextElementSibling; el.remove(); el = next; }
+  TEAMS.forEach((t, i) => {
+    const color = TEAM_COLORS[i % TEAM_COLORS.length];
+    const btn = document.createElement('button');
+    btn.className = 'nav-item';
+    btn.onclick = () => filterTeam(t);
+    btn.innerHTML = `<div class="team-dot" style="background:${color}"></div>${t}`;
+    navSection.parentNode.insertBefore(btn, navSection.nextSibling);
+  });
+  // Rebuild filter dropdown
+  const sel = document.getElementById('f-team');
+  if (sel) {
+    sel.innerHTML = '<option value="">All teams</option>' + TEAMS.map(t=>`<option>${t}</option>`).join('');
+  }
+  // Rebuild modal team dropdown
+  const selM = document.getElementById('f-team-m');
+  if (selM) selM.innerHTML = TEAMS.map(t=>`<option>${t}</option>`).join('');
+}
+
 async function loadFromADO() {
   if (!cfg.pat) { showNoPATState(); return; }
   setLoadingState();
@@ -406,9 +438,12 @@ async function loadFromADO() {
       const f = w.fields;
       const assignedTo = f['System.AssignedTo'];
       const assignee = typeof assignedTo === 'object' ? (assignedTo?.displayName || '') : (assignedTo || '');
-      const team = parseTeamFromArea(f['System.AreaPath']);
+      const team = parseTeamFromArea(f['System.AreaPath'], f['System.IterationPath']);
       return {id:String(w.id),team,type:f['System.WorkItemType']||'Task',title:f['System.Title']||'',assignee,status:f['System.State']||'New',original:f['System.State']||'New',iterationPath:f['System.IterationPath']||'',storyPoints:f['Microsoft.VSTS.Scheduling.StoryPoints']||0};
     });
+    // Build dynamic team list from actual data
+    TEAMS = [...new Set(allItems.map(i=>i.team).filter(t=>t&&t!=='Unknown'))].sort();
+    rebuildTeamUI();
     changes = {}; page = 0;
     renderDashboard();
     renderTable();
