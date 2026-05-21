@@ -308,7 +308,193 @@ function saveSettings() {
   try { localStorage.setItem('hxdash_cfg', JSON.stringify(cfg)); } catch(e){}
   document.getElementById('settings-status').textContent = '✓ Saved! Reloading data…';
   // Charts rendered as inline SVG - no Chart.js needed
+  setTimeout(() => { document.getElementById('settings-status').textContent = ''; loadFromADO(); }, 800);
 }
+
+// ── ADO API ──────────────────────────────────────────────────────────────────
+const TEAMS = ['DIS','HxPro','Portals','HxApps','Venus'];
+const STATUS_META = {
+  Active:{bg:'#eff6ff',text:'#1d4ed8',dot:'#2563eb'},New:{bg:'#fffbeb',text:'#b45309',dot:'#d97706'},
+  Closed:{bg:'#f0fdf4',text:'#15803d',dot:'#16a34a'},Ready:{bg:'#f5f3ff',text:'#6d28d9',dot:'#7c3aed'},
+  Accepted:{bg:'#eff6ff',text:'#1e40af',dot:'#3b82f6'},Complete:{bg:'#f0fdf4',text:'#0f766e',dot:'#0d9488'},
+  Resolved:{bg:'#f9fafb',text:'#4b5563',dot:'#6b7280'},
+};
+const TYPE_COLOR = {'User Story':'#7c3aed','Task':'#6b7280','Incident':'#d97706','Bug':'#dc2626','Feature':'#2563eb','Epic':'#0d9488'};
+const TEAM_DOT = {DIS:'#6b7280',HxPro:'#0891b2',Portals:'#16a34a',HxApps:'#7c3aed',Venus:'#db2777'};
+const DONUT_COLORS = {Active:'#2563eb',New:'#d97706',Closed:'#16a34a',Ready:'#7c3aed',Accepted:'#3b82f6',Complete:'#0d9488',Resolved:'#6b7280'};
+let allItems = [];
+let changes = {};
+let editingId = null;
+let page = 0;
+const PAGE = 20;
+let sortKey = '', sortDir = 1;
+
+function b64(pat) { return btoa(unescape(encodeURIComponent(':' + pat))); }
+
+async function adoWIQL(wiql) {
+  const url = `https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/wiql?$top=500&api-version=7.0`;
+  const r = await fetch(url, {method:'POST',headers:{'Authorization':'Basic '+b64(cfg.pat),'Content-Type':'application/json'},body:JSON.stringify({query:wiql})});
+  if (!r.ok) throw new Error(`WIQL query failed: ${r.status}`);
+  return r.json();
+}
+
+async function adoGetItems(ids) {
+  if (!ids.length) return [];
+  const fields = ['System.Id','System.Title','System.State','System.WorkItemType','System.AssignedTo','System.AreaPath','System.IterationPath','Microsoft.VSTS.Scheduling.StoryPoints'];
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += 200) chunks.push(ids.slice(i, i+200));
+  let results = [];
+  for (const chunk of chunks) {
+    const r = await fetch(`https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/workitemsbatch?api-version=7.0`,{method:'POST',headers:{'Authorization':'Basic '+b64(cfg.pat),'Content-Type':'application/json'},body:JSON.stringify({ids:chunk,fields})});
+    if (!r.ok) throw new Error(`Work items fetch failed: ${r.status}`);
+    const d = await r.json();
+    results = results.concat(d.value || []);
+  }
+  return results;
+}
+
+function parseTeamFromArea(areaPath) {
+  if (!areaPath) return 'Unknown';
+  const parts = areaPath.split('\\');
+  for (const part of parts) {
+    const m = part.match(/^Team\s+(.+)/i);
+    if (m) return m[1].trim();
+  }
+  // Match known teams directly
+  const lower = areaPath.toLowerCase();
+  for (const t of TEAMS) {
+    if (lower.includes(t.toLowerCase())) return t;
+  }
+  return parts[parts.length-1] || 'Unknown';
+}
+
+function setLoadingState() {
+  document.getElementById('dash-content').innerHTML = `<div class="state-box"><div class="spinner"></div><h3>Loading from Azure DevOps…</h3><p>Fetching work items across all teams</p></div>`;
+  document.getElementById('tracker-content').innerHTML = `<div class="state-box"><div class="spinner"></div><h3>Loading…</h3></div>`;
+}
+
+function showNoPATState() {
+  const html = `<div class="state-box"><div class="icon">🔑</div><h3>No PAT configured</h3><p>Go to <strong>Settings</strong> and enter your Azure DevOps Personal Access Token.</p><br><button class="btn btn-primary" onclick="showPage('settings',null)" style="margin-top:8px">Open Settings</button></div>`;
+  document.getElementById('dash-content').innerHTML = html;
+  document.getElementById('tracker-content').innerHTML = html;
+}
+
+function setErrorState(msg) {
+  const html = `<div class="state-box"><div class="icon">⚠️</div><h3>Could not connect to Azure DevOps</h3><p style="color:#dc2626;font-family:monospace;font-size:11px;margin:8px 0">${msg}</p><br><button class="btn btn-primary" onclick="showPage('settings',null)" style="margin-top:8px">Open Settings</button></div>`;
+  document.getElementById('dash-content').innerHTML = html;
+  document.getElementById('tracker-content').innerHTML = html;
+}
+
+function setEmptyState() {
+  const html = `<div class="state-box"><div class="icon">📭</div><h3>No items found</h3><p>No work items were returned. Check your Settings.</p></div>`;
+  document.getElementById('dash-content').innerHTML = html;
+  document.getElementById('tracker-content').innerHTML = html;
+}
+
+async function loadFromADO() {
+  if (!cfg.pat) { showNoPATState(); return; }
+  setLoadingState();
+  try {
+    const wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${cfg.project}' ORDER BY [System.ChangedDate] DESC`;
+    const wiqlResult = await adoWIQL(wiql);
+    const ids = (wiqlResult.workItems || []).map(w => w.id);
+    if (!ids.length) { setEmptyState(); return; }
+    const raw = await adoGetItems(ids);
+    allItems = raw.map(w => {
+      const f = w.fields;
+      const assignedTo = f['System.AssignedTo'];
+      const assignee = typeof assignedTo === 'object' ? (assignedTo?.displayName || '') : (assignedTo || '');
+      const team = parseTeamFromArea(f['System.AreaPath']);
+      return {id:String(w.id),team,type:f['System.WorkItemType']||'Task',title:f['System.Title']||'',assignee,status:f['System.State']||'New',original:f['System.State']||'New',iterationPath:f['System.IterationPath']||'',storyPoints:f['Microsoft.VSTS.Scheduling.StoryPoints']||0};
+    });
+    changes = {}; page = 0;
+    renderDashboard();
+    renderTable();
+    showToast(`✓ Loaded ${allItems.length} items from ADO`);
+  } catch(err) { setErrorState(err.message); }
+}
+
+function renderDashboard() {
+  const items = allItems;
+  const closed = items.filter(i=>['Closed','Complete'].includes(i.status)).length;
+  const pct = items.length ? Math.round(closed/items.length*100) : 0;
+
+  const metricsHtml = `<div class="metrics">
+    <div class="metric"><div class="val">${items.length}</div><div class="lbl">Total items</div></div>
+    <div class="metric"><div class="val" style="color:#2563eb">${items.filter(i=>i.status==='Active').length}</div><div class="lbl">Active</div></div>
+    <div class="metric"><div class="val" style="color:#d97706">${items.filter(i=>i.status==='New').length}</div><div class="lbl">New</div></div>
+    <div class="metric"><div class="val" style="color:#16a34a">${closed}</div><div class="lbl">Closed/Complete</div></div>
+    <div class="metric"><div class="val" style="color:#0d9488">${pct}%</div><div class="lbl">Completion</div></div>
+    <div class="metric"><div class="val">${[...new Set(items.map(i=>i.assignee).filter(Boolean))].length}</div><div class="lbl">Contributors</div></div>
+  </div>`;
+
+  const legendHtml = `<div class="legend">${Object.entries(STATUS_META).map(([s,m])=>`<div class="leg"><div class="leg-dot" style="background:${m.dot}"></div><span style="color:${m.text};font-weight:600">${s}</span></div>`).join('')}</div>`;
+
+  const teamCardsHtml = `<div class="charts-grid" style="grid-template-columns:repeat(3,1fr)">
+    ${TEAMS.map(t=>{
+      const ti = items.filter(i=>i.team===t);
+      if (!ti.length) return '';
+      const total = ti.length;
+      const statusCounts = Object.entries(DONUT_COLORS).map(([s,c])=>({s,c,n:ti.filter(i=>i.status===s).length})).filter(d=>d.n>0);
+      let cum = 0;
+      const r = 45, cx = 60, cy = 60, circ = 2*Math.PI*r;
+      const segments = statusCounts.map(({s,c,n})=>{
+        const pct = n/total;
+        const dash = pct*circ;
+        const offset = -cum*circ;
+        cum += pct;
+        return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${c}" stroke-width="18" stroke-dasharray="${dash} ${circ-dash}" stroke-dashoffset="${offset}" transform="rotate(-90 ${cx} ${cy})"/>`;
+      }).join('');
+      return `<div class="chart-card">
+        <h3><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${TEAM_DOT[t]||'#888'};margin-right:6px;vertical-align:2px"></span>${t}</h3>
+        <p>${ti.length} items</p>
+        <div style="display:flex;justify-content:center;margin:10px 0">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="45" fill="none" stroke="#f3f4f6" stroke-width="18"/>
+            ${segments}
+            <text x="60" y="56" text-anchor="middle" font-size="20" font-weight="500" fill="#111827">${total}</text>
+            <text x="60" y="72" text-anchor="middle" font-size="9" fill="#9ca3af">ITEMS</text>
+          </svg>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${statusCounts.map(({s,c,n})=>`<span style="font-size:10px;color:#6b7280"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c};margin-right:3px"></span>${s} ${n}</span>`).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  const spMap = {};
+  items.forEach(i=>{ if(i.storyPoints && i.assignee) spMap[i.assignee] = (spMap[i.assignee]||0)+i.storyPoints; });
+  const spTop = Object.entries(spMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const spMax = spTop[0]?.[1]||1;
+  const spColors = ['#2563eb','#7c3aed','#0d9488','#d97706','#dc2626','#0891b2','#ea580c','#16a34a','#6b7280','#3b82f6'];
+  const spHtml = spTop.length ? `<div class="chart-card" style="margin-bottom:14px">
+    <h3>Story points by assignee</h3><p>Top contributors</p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+      ${spTop.map(([n,p],i)=>`<div style="display:flex;align-items:center;gap:10px">
+        <div style="width:140px;font-size:11px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">${n}</div>
+        <div class="mini-bar"><div class="mini-bar-fill" style="width:${Math.round(p/spMax*100)}%;background:${spColors[i%spColors.length]}"></div></div>
+        <div style="width:26px;font-size:11px;font-weight:500;text-align:right;flex-shrink:0">${p}</div>
+      </div>`).join('')}
+    </div>
+  </div>` : '';
+
+  const typeChartHtml = `<div class="chart-card" style="margin-bottom:14px">
+    <h3>Work type mix — all teams</h3><p>Distribution of work item types</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 0">
+      ${['User Story','Task','Incident','Bug','Feature','Epic'].map(ty=>{
+        const n=items.filter(i=>i.type===ty).length;
+        if(!n) return '';
+        const c=TYPE_COLOR[ty]||'#888';
+        const pct=Math.round(n/items.length*100);
+        return `<div style="flex:1;min-width:80px"><div style="font-size:11px;color:#6b7280;margin-bottom:4px">${ty}</div><div style="background:#f3f4f6;border-radius:4px;height:8px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${c};border-radius:4px"></div></div><div style="font-size:11px;font-weight:500;margin-top:3px">${n}</div></div>`;
+      }).join('')}
+    </div>
+  </div>`;
+
+  document.getElementById('dash-content').innerHTML = metricsHtml + legendHtml + teamCardsHtml + typeChartHtml + spHtml;
+}
+
 
 // ── Tracker ──────────────────────────────────────────────────────────────────
 function getFiltered() {
