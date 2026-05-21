@@ -381,10 +381,7 @@ async function loadFromADO() {
   }
   setLoadingState();
   try {
-    const wiql = `SELECT [System.Id] FROM WorkItems 
-      WHERE [System.TeamProject] = '${cfg.project}' 
-      AND [System.IterationPath] CONTAINS '${cfg.q2}.${cfg.year}'
-      ORDER BY [System.ChangedDate] DESC`;
+    const wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${cfg.project}' AND [System.IterationPath] CONTAINS '${cfg.q2}.${cfg.year}' ORDER BY [System.ChangedDate] DESC`;
 
     const wiqlResult = await adoWIQL(wiql);
     const ids = (wiqlResult.workItems || []).map(w => w.id);
