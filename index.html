@@ -81,13 +81,13 @@
   .btn-sm { padding: 4px 10px; font-size: 11px; }
   .btn-danger { background: #fef2f2; color: #b91c1c; border-color: transparent; }
   table { width: 100%; border-collapse: collapse; }
-  thead th { font-size: 11px; font-weight: 500; color: var(--text-3); text-align: left; padding: 8px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none; white-space: nowrap; }
+  thead th { font-size: 11px; font-weight: 500; color: var(--text-3); text-align: left; padding: 8px 12px; background: var(--surface2); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
   tbody tr:last-child { border-bottom: none; }
   tbody tr:hover { background: #fafaf8; }
   tbody tr.changed { background: #fffbeb; }
-  td { padding: 8px 12px; font-size: 12px; vertical-align: middle; }
-  .cell-title { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td { padding: 8px 12px; font-size: 12px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cell-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .status-sel { font-size: 11px; padding: 3px 8px; border-radius: 20px; border: 1px solid var(--border-strong); background: var(--surface); cursor: pointer; width: 108px; }
 
   /* Pagination */
@@ -604,12 +604,12 @@ function renderTable() {
     <table>
       <thead><tr>
         <th onclick="doSort('id')" style="width:65px">ID ${sortKey==='id'?(sortDir>0?'↑':'↓'):'↕'}</th>
-        <th onclick="doSort('team')" style="width:80px">Team ${sortKey==='team'?(sortDir>0?'↑':'↓'):'↕'}</th>
+        <th onclick="doSort('team')" style="width:90px">Team ${sortKey==='team'?(sortDir>0?'↑':'↓'):'↕'}</th>
         <th style="width:95px">Type</th>
-        <th>Title</th>
-        <th style="width:120px">Assignee</th>
-        <th onclick="doSort('status')" style="width:115px">Status ${sortKey==='status'?(sortDir>0?'↑':'↓'):'↕'}</th>
-        <th style="width:75px">Actions</th>
+        <th style="width:300px">Title</th>
+        <th style="width:150px">Assignee</th>
+        <th onclick="doSort('status')" style="width:120px">Status ${sortKey==='status'?(sortDir>0?'↑':'↓'):'↕'}</th>
+        <th style="width:80px">Actions</th>
       </tr></thead>
       <tbody>
         ${slice.length===0?`<tr><td colspan="7" style="padding:32px;text-align:center;color:#9a9890">No items match your filters.</td></tr>`:''}
@@ -733,7 +733,13 @@ let tdItems = [];
 let tdPage = 0;
 const TD_PAGE = 50;
 
+let tdRefreshInterval = null;
+
 async function loadTechDebt() {
+  // Start auto-refresh timer if not already running
+  if (!tdRefreshInterval) {
+    tdRefreshInterval = setInterval(loadTechDebt, 5 * 60 * 1000);
+  }
   if (!cfg.pat) { document.getElementById('techdebt-content').innerHTML = '<div class="state-box"><p>No PAT configured. Go to Settings first.</p></div>'; return; }
   document.getElementById('techdebt-content').innerHTML = '<div class="state-box"><div class="spinner"></div><h3>Loading Tech Debt…</h3></div>';
   try {
@@ -821,7 +827,7 @@ function renderTechDebt() {
           const tc = TYPE_COLOR[it.type]||'#6b7280';
           const date = it.targetDate ? new Date(it.targetDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
           return `<tr>
-            <td style="font-size:11px;color:#9a9890">${it.id}</td>
+            <td style="font-size:11px;color:#9a9890"><a href="https://dev.azure.com/${cfg.org}/${cfg.project}/_workitems/edit/${it.id}" target="_blank" style="color:#0891b2;text-decoration:none">${it.id}</a></td>
             <td style="font-size:11px;color:#5c5a54">${it.team}</td>
             <td><span style="background:${tc}18;color:${tc};padding:2px 7px;border-radius:20px;font-size:10px">${it.type}</span></td>
             <td style="max-width:320px;width:320px"><div class="cell-title" title="${it.title.replace(/"/g,'&quot;')}">${it.title}</div></td>
