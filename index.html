@@ -150,6 +150,10 @@
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 12 2 2 4-4"/></svg>
     Status Tracker
   </button>
+  <button class="nav-item" onclick="showPage('techdebt',this)">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    Tech Debt
+  </button>
   <button class="nav-item" onclick="showPage('settings',this)">
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     Settings
@@ -215,6 +219,36 @@
       </div>
       <div id="tracker-content">
         <div class="state-box"><div class="spinner"></div><h3>Loading…</h3></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TECH DEBT -->
+  <div id="page-techdebt" class="page">
+    <div class="page-header">
+      <h2>Tech Debt Items</h2>
+      <p>Live from ADO · All tech debt across teams</p>
+    </div>
+    <div class="table-card">
+      <div class="toolbar">
+        <div class="toolbar-title">Tech Debt</div>
+        <input type="text" id="td-search" placeholder="Search ID, title, assignee…" oninput="renderTechDebt()" style="width:175px">
+        <select id="td-team" onchange="renderTechDebt()">
+          <option value="">All teams</option>
+        </select>
+        <select id="td-type" onchange="renderTechDebt()">
+          <option value="">All types</option>
+          <option>User Story</option><option>Task</option><option>Bug</option><option>Feature</option><option>Epic</option>
+        </select>
+        <select id="td-status" onchange="renderTechDebt()">
+          <option value="">All statuses</option>
+          <option>Active</option><option>New</option><option>Closed</option>
+          <option>Ready</option><option>Accepted</option><option>Complete</option><option>Resolved</option>
+        </select>
+        <button class="btn" onclick="loadTechDebt()" title="Refresh">↻ Refresh</button>
+      </div>
+      <div id="techdebt-content">
+        <div class="state-box"><p style="color:var(--text-3)">Click Refresh to load Tech Debt items from ADO.</p></div>
       </div>
     </div>
   </div>
@@ -692,6 +726,122 @@ function deleteItem(id){
   if(!confirm(`Delete item ${id}?`)) return;
   allItems=allItems.filter(i=>i.id!==id); delete changes[id];
   renderTable(); renderDashboard(); showToast('Item deleted');
+}
+
+// ── Tech Debt ────────────────────────────────────────────────────────────────
+let tdItems = [];
+let tdPage = 0;
+const TD_PAGE = 50;
+
+async function loadTechDebt() {
+  if (!cfg.pat) { document.getElementById('techdebt-content').innerHTML = '<div class="state-box"><p>No PAT configured. Go to Settings first.</p></div>'; return; }
+  document.getElementById('techdebt-content').innerHTML = '<div class="state-box"><div class="spinner"></div><h3>Loading Tech Debt…</h3></div>';
+  try {
+    const headers = { 'Content-Type':'application/json', 'Authorization':'Basic '+btoa(':'+cfg.pat) };
+    const wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${cfg.project}' AND [System.Tags] CONTAINS 'Tech Debt' ORDER BY [System.Id] DESC`;
+    const wiqlRes = await fetch(`https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/wiql?api-version=7.0`, { method:'POST', headers, body: JSON.stringify({query: wiql}) });
+    if (!wiqlRes.ok) throw new Error('WIQL failed: ' + wiqlRes.status);
+    const wiqlData = await wiqlRes.json();
+    const ids = (wiqlData.workItems||[]).map(w=>w.id);
+    if (!ids.length) { document.getElementById('techdebt-content').innerHTML = '<div class="state-box"><p>No Tech Debt items found. Make sure items are tagged with "Tech Debt" in ADO.</p></div>'; return; }
+    const fields = ['System.Id','System.Title','System.WorkItemType','System.State','System.AssignedTo','System.IterationPath','System.AreaPath','System.Tags','Microsoft.VSTS.Common.Priority','Microsoft.VSTS.Common.Severity','Microsoft.VSTS.Scheduling.TargetDate'];
+    const chunks = [];
+    for (let i=0; i<ids.length; i+=200) chunks.push(ids.slice(i,i+200));
+    const allRaw = [];
+    for (const chunk of chunks) {
+      const r = await fetch(`https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/workitemsbatch?api-version=7.0`, { method:'POST', headers, body: JSON.stringify({ids:chunk,fields}) });
+      if (!r.ok) throw new Error('Batch fetch failed');
+      const d = await r.json();
+      allRaw.push(...(d.value||[]));
+    }
+    tdItems = allRaw.map(w => {
+      const f = w.fields;
+      const assignedTo = f['System.AssignedTo'];
+      const assignee = typeof assignedTo === 'object' ? (assignedTo?.displayName||'') : (assignedTo||'');
+      const team = parseTeamFromArea(f['System.AreaPath'], f['System.IterationPath']);
+      return {
+        id: String(w.id),
+        title: f['System.Title']||'',
+        type: f['System.WorkItemType']||'Task',
+        status: f['System.State']||'New',
+        assignee,
+        team,
+        tags: f['System.Tags']||'',
+        priority: f['Microsoft.VSTS.Common.Priority']||'',
+        severity: f['Microsoft.VSTS.Common.Severity']||'',
+        targetDate: f['Microsoft.VSTS.Scheduling.TargetDate']||'',
+        iterationPath: f['System.IterationPath']||''
+      };
+    });
+    // rebuild team filter dropdown for tech debt
+    const tdTeams = [...new Set(tdItems.map(i=>i.team).filter(t=>t&&t!=='Unknown'))].sort();
+    const tdTeamSel = document.getElementById('td-team');
+    tdTeamSel.innerHTML = '<option value="">All teams</option>' + tdTeams.map(t=>`<option>${t}</option>`).join('');
+    tdPage = 0;
+    renderTechDebt();
+    showToast(`✓ Loaded ${tdItems.length} tech debt items`);
+  } catch(err) {
+    document.getElementById('techdebt-content').innerHTML = `<div class="state-box"><p style="color:var(--red)">Error: ${err.message}</p></div>`;
+  }
+}
+
+function renderTechDebt() {
+  const search = (document.getElementById('td-search')?.value||'').toLowerCase();
+  const teamF = document.getElementById('td-team')?.value||'';
+  const typeF = document.getElementById('td-type')?.value||'';
+  const statusF = document.getElementById('td-status')?.value||'';
+  let filtered = tdItems.filter(it => {
+    if (teamF && it.team !== teamF) return false;
+    if (typeF && it.type !== typeF) return false;
+    if (statusF && it.status !== statusF) return false;
+    if (search && !it.id.includes(search) && !it.title.toLowerCase().includes(search) && !it.assignee.toLowerCase().includes(search)) return false;
+    return true;
+  });
+  const total = filtered.length;
+  const maxPage = Math.max(0, Math.ceil(total/TD_PAGE)-1);
+  if (tdPage > maxPage) tdPage = maxPage;
+  const slice = filtered.slice(tdPage*TD_PAGE, (tdPage+1)*TD_PAGE);
+  const html = `
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th style="width:65px">ID</th>
+        <th style="width:90px">Team</th>
+        <th style="width:85px">Type</th>
+        <th>Title</th>
+        <th style="width:140px">Assignee</th>
+        <th style="width:60px">Priority</th>
+        <th style="width:95px">Target Date</th>
+        <th style="width:110px">Status</th>
+      </tr></thead>
+      <tbody>
+        ${slice.length===0?`<tr><td colspan="8" style="padding:32px;text-align:center;color:#9a9890">No items match your filters.</td></tr>`:''}
+        ${slice.map(it => {
+          const sm = STATUS_META[it.status]||STATUS_META.New;
+          const tc = TYPE_COLOR[it.type]||'#6b7280';
+          const date = it.targetDate ? new Date(it.targetDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+          return `<tr>
+            <td style="font-size:11px;color:#9a9890">${it.id}</td>
+            <td style="font-size:11px;color:#5c5a54">${it.team}</td>
+            <td><span style="background:${tc}18;color:${tc};padding:2px 7px;border-radius:20px;font-size:10px">${it.type}</span></td>
+            <td><div class="cell-title" title="${it.title.replace(/"/g,'&quot;')}">${it.title}</div></td>
+            <td style="font-size:11px;color:#5c5a54">${it.assignee||'—'}</td>
+            <td style="font-size:11px;text-align:center">${it.priority||'—'}</td>
+            <td style="font-size:11px;color:#5c5a54">${date}</td>
+            <td><span style="background:${sm.bg};color:${sm.text};padding:2px 8px;border-radius:20px;font-size:10px;white-space:nowrap">${it.status}</span></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+    <div class="pagination">
+      <span>${total===0?'No results':`${tdPage*TD_PAGE+1}–${Math.min((tdPage+1)*TD_PAGE,total)} of ${total}`}</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="tdPage--;renderTechDebt()" ${tdPage===0?'disabled':''}>← Prev</button>
+        <button class="btn btn-sm" onclick="tdPage++;renderTechDebt()" ${tdPage>=maxPage?'disabled':''}>Next →</button>
+      </div>
+    </div>`;
+  document.getElementById('techdebt-content').innerHTML = html;
 }
 
 // ── Nav ──────────────────────────────────────────────────────────────────────
