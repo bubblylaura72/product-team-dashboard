@@ -738,7 +738,7 @@ async function loadTechDebt() {
   document.getElementById('techdebt-content').innerHTML = '<div class="state-box"><div class="spinner"></div><h3>Loading Tech Debt…</h3></div>';
   try {
     const headers = { 'Content-Type':'application/json', 'Authorization':'Basic '+btoa(':'+cfg.pat) };
-    const wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${cfg.project}' AND [System.Tags] CONTAINS 'Tech Debt' ORDER BY [System.Id] DESC`;
+    const wiql = `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '${cfg.project}' AND ([System.IterationPath] UNDER 'HxApps\\HXPro Teams\\Team Mercury' OR [System.IterationPath] UNDER 'HxApps\\HXPro Teams\\Team Mars' OR [System.IterationPath] UNDER 'HxApps\\HXPro Teams\\Team Saturn' OR [System.IterationPath] UNDER 'HxApps\\HXPro Teams\\Team Neptune' OR [System.IterationPath] UNDER 'HxApps\\HXPro Teams\\Team Jupiter' OR [System.IterationPath] UNDER 'HxApps\\Portal Teams\\Team Delta' OR [System.IterationPath] UNDER 'HxApps\\HXPro Teams\\Team Top Gun (Support HXP)' OR [System.IterationPath] UNDER 'HxApps\\DIS Teams\\Team Maverick (Support)' OR [System.IterationPath] UNDER 'HxApps\\Platform Teams\\Team Echo' OR [System.IterationPath] UNDER 'HxApps\\Tech Debt') AND [System.WorkItemType] IN ('Feature','User Story','Incident') AND [System.State] NOT IN ('Closed','Resolved') ORDER BY [System.Id] DESC`;
     const wiqlRes = await fetch(`https://dev.azure.com/${cfg.org}/${cfg.project}/_apis/wit/wiql?api-version=7.0`, { method:'POST', headers, body: JSON.stringify({query: wiql}) });
     if (!wiqlRes.ok) throw new Error('WIQL failed: ' + wiqlRes.status);
     const wiqlData = await wiqlRes.json();
