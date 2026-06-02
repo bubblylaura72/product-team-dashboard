@@ -808,11 +808,11 @@ function renderTechDebt() {
         <th style="width:65px">ID</th>
         <th style="width:90px">Team</th>
         <th style="width:85px">Type</th>
-        <th>Title</th>
-        <th style="width:140px">Assignee</th>
+        <th style="max-width:320px">Title</th>
+        <th style="width:160px">Assignee</th>
         <th style="width:60px">Priority</th>
         <th style="width:95px">Target Date</th>
-        <th style="width:110px">Status</th>
+        <th style="width:130px">Status</th>
       </tr></thead>
       <tbody>
         ${slice.length===0?`<tr><td colspan="8" style="padding:32px;text-align:center;color:#9a9890">No items match your filters.</td></tr>`:''}
@@ -824,9 +824,8 @@ function renderTechDebt() {
             <td style="font-size:11px;color:#9a9890">${it.id}</td>
             <td style="font-size:11px;color:#5c5a54">${it.team}</td>
             <td><span style="background:${tc}18;color:${tc};padding:2px 7px;border-radius:20px;font-size:10px">${it.type}</span></td>
-            <td><div class="cell-title" title="${it.title.replace(/"/g,'&quot;')}">${it.title}</div></td>
+            <td style="max-width:320px;width:320px"><div class="cell-title" title="${it.title.replace(/"/g,'&quot;')}">${it.title}</div></td>
             <td style="font-size:11px;color:#5c5a54">${it.assignee||'—'}</td>
-            <td style="font-size:11px;text-align:center">${it.priority||'—'}</td>
             <td style="font-size:11px;color:#5c5a54">${date}</td>
             <td><span style="background:${sm.bg};color:${sm.text};padding:2px 8px;border-radius:20px;font-size:10px;white-space:nowrap">${it.status}</span></td>
           </tr>`;
