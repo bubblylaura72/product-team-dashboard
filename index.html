@@ -619,7 +619,7 @@ function renderTable() {
           const tc2 = TYPE_COLOR[it.type]||'#6b7280';
           const opts = Object.keys(STATUS_META).map(s=>`<option value="${s}"${it.status===s?' selected':''}>${s}</option>`).join('');
           return `<tr${changed?' class="changed"':''}>
-            <td style="font-size:11px;color:#9a9890;font-variant-numeric:tabular-nums">${it.id}</td>
+            <td style="font-size:11px;color:#9a9890;font-variant-numeric:tabular-nums"><a href="https://dev.azure.com/${cfg.org}/${cfg.project}/_workitems/edit/${it.id}" target="_blank" style="color:#0891b2;text-decoration:none">${it.id}</a></td>
             <td style="font-size:11px;color:#5c5a54">${it.team}</td>
             <td><span style="background:${tc2}18;color:${tc2};padding:2px 7px;border-radius:20px;font-size:10px">${it.type}</span></td>
             <td><div class="cell-title" title="${it.title.replace(/"/g,'&quot;')}">${it.title}</div></td>
