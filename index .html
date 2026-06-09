@@ -72,6 +72,7 @@
   .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 14px; }
   .toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
   .toolbar-title { font-size: 13px; font-weight: 500; flex: 1; min-width: 100px; }
+  fetch('https://dev.azure.com/hxgado/HxApps/_apis/wit/workitems/$Feature?api-version=7.1', {method:'POST',headers:{'Content-Type':'application/json-patch+json','Authorization':'Basic '+btoa(':YOUR_PAT_HERE')},body:JSON.stringify([{op:'add',path:'/fields/System.Title',value:'Provider Portal Capability Gap Analysis: HealthAxis vs HGM/Netiva'},{op:'add',path:'/fields/System.AreaPath',value:'HxApps\\Jupiter'},{op:'add',path:'/fields/System.Tags',value:'Provider Portal; Gap Analysis; HGM; Netiva; Jupiter'},{op:'add',path:'/fields/Microsoft.VSTS.Scheduling.TargetDate',value:'2026-06-19'}])}).then(r=>r.json()).then(d=>console.log('Created ADO #'+d.id))
   input[type=text], select { font-family: inherit; font-size: 12px; padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; }
   input[type=text]:focus, select:focus { border-color: var(--blue); }
   .btn { font-family: inherit; font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: var(--radius-sm); cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); transition: all .12s; }
