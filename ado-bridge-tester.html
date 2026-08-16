@@ -104,7 +104,7 @@
         <option value="path">Everything under a path</option>
       </select>
     </div>
-    <div id="epicBox"><label>Epic ID</label><input id="epicId" value="85554"></div>
+    <div id="epicBox"><label>Epic IDs (comma separated)</label><input id="epicId" value="85554, 87224, 87230"></div>
     <div>
       <label>Types</label>
       <select id="types">
@@ -211,10 +211,13 @@ $('btnTree').onclick = async () => {
   } catch (e) { $('treeStatus').textContent = e.message; $('treeStatus').className = 'status bad'; }
 };
 
+function epicIds(){
+  return ($('epicId').value.match(/\d+/g) || []).map(Number);
+}
 function treeWiql(){
-  const id = parseInt($('epicId').value, 10) || 0;
+  const ids = epicIds();
   return `SELECT [System.Id] FROM workitemLinks `
-    + `WHERE ([Source].[System.Id] = ${id}) `
+    + `WHERE ([Source].[System.Id] IN (${ids.join(', ')})) `
     + `AND ([System.Links.LinkType] = 'System.LinkTypes.Hierarchy-Forward') `
     + `MODE (Recursive)`;
 }
@@ -256,7 +259,7 @@ $('btnRun').onclick = async () => {
     const ids = await getIds(c);
     if (!ids.length){
       $('runStatus').textContent = $('scope').value === 'epic'
-        ? 'Query ran fine but that Epic has no children linked under it.'
+        ? 'Query ran fine but those Epics have no children linked under them.'
         : 'Query ran fine but returned 0 items. Try a higher root path.';
       $('runStatus').className = 'status warn';
       $('btnRun').disabled = false; return;
@@ -281,7 +284,10 @@ $('btnRun').onclick = async () => {
       url: `https://dev.azure.com/${c.org}/${c.project}/_workitems/edit/${w.id}`
     }));
     render();
-    $('runStatus').innerHTML = `<span class="count">${RESULTS.length}</span> work items returned`;
+    const byType = {};
+    RESULTS.forEach(r => byType[r.type] = (byType[r.type] || 0) + 1);
+    const breakdown = Object.keys(byType).sort().map(t => `${t}: ${byType[t]}`).join(' · ');
+    $('runStatus').innerHTML = `<span class="count">${RESULTS.length}</span> work items returned &nbsp;<span style="color:#8b98a5">${breakdown}</span>`;
     $('runStatus').className = 'status ok';
     $('btnCsv').disabled = false; $('btnJson').disabled = false;
   } catch (e) { $('runStatus').textContent = e.message; $('runStatus').className = 'status bad'; }
