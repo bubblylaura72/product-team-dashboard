@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADO Bridge Tester</title>
+<style>
+  :root{
+    --ink:#0d1117; --panel:#151b23; --line:#2a3441; --line-soft:#1f2731;
+    --text:#e6edf3; --dim:#8b98a5; --accent:#4ea1ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--text);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  header{padding:20px 24px;border-bottom:1px solid var(--line);}
+  h1{margin:0;font-size:17px;letter-spacing:.2px;font-weight:600}
+  h1 span{color:var(--dim);font-weight:400}
+  .sub{color:var(--dim);font-size:12.5px;margin-top:4px}
+  main{padding:20px 24px;max-width:1180px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:16px}
+  .panel h2{margin:0 0 12px;font-size:12px;text-transform:uppercase;letter-spacing:.9px;color:var(--dim);font-weight:600}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  label{display:block;font-size:11.5px;color:var(--dim);margin-bottom:4px;letter-spacing:.3px}
+  input,select{width:100%;background:#0d1117;border:1px solid var(--line);color:var(--text);
+    padding:8px 10px;border-radius:6px;font:13px var(--mono)}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+  button{background:#1f6feb;border:none;color:#fff;padding:8px 14px;border-radius:6px;
+    font-size:13px;font-weight:500;cursor:pointer}
+  button:hover{background:#388bfd}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+  button.ghost:hover{background:#1c2430}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .status{font-size:12.5px;color:var(--dim);font-family:var(--mono)}
+  .status.ok{color:var(--ok)} .status.bad{color:var(--bad)} .status.warn{color:var(--warn)}
+  pre{background:#0d1117;border:1px solid var(--line-soft);border-radius:6px;padding:12px;
+    overflow:auto;font:12px/1.55 var(--mono);color:#c9d5e1;max-height:340px;margin:0}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);color:var(--dim);
+    font-size:11px;text-transform:uppercase;letter-spacing:.6px;position:sticky;top:0;background:var(--panel)}
+  td{padding:7px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  tr:hover td{background:#1a2029}
+  td a{color:var(--accent);text-decoration:none;font-family:var(--mono)}
+  .wrap{max-height:460px;overflow:auto;border:1px solid var(--line-soft);border-radius:6px}
+  .pill{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;border:1px solid var(--line)}
+  .tree{font:12px/1.7 var(--mono);color:#c9d5e1;max-height:280px;overflow:auto}
+  .tree div{cursor:pointer;padding:1px 4px;border-radius:4px}
+  .tree div:hover{background:#1c2430;color:var(--accent)}
+  .hint{font-size:12px;color:var(--dim);margin-top:10px}
+  .count{color:var(--accent);font-family:var(--mono)}
+</style>
+</head>
+<body>
+<header>
+  <h1>ADO Bridge Tester <span>/ dashboard to Azure DevOps</span></h1>
+  <div class="sub">Proves the read path works, then hands you the exact fetch code to drop into the tracker.</div>
+</header>
+
+<main>
+
+<div class="panel">
+  <h2>1. Connection</h2>
+  <div class="grid">
+    <div><label>Organization</label><input id="org" value="hxgado"></div>
+    <div><label>Project</label><input id="project" value="HxApps"></div>
+    <div><label>Personal access token</label><input id="pat" type="password" placeholder="paste PAT"></div>
+  </div>
+  <div class="row">
+    <button id="btnTest">Test connection</button>
+    <button class="ghost" id="btnForget">Forget token</button>
+    <span class="status" id="connStatus">Not connected</span>
+  </div>
+  <div class="hint">Token stays in this browser only (localStorage). Needs Work Items: Read.</div>
+</div>
+
+<div class="panel">
+  <h2>2. Find the right path</h2>
+  <div class="grid">
+    <div>
+      <label>Path field</label>
+      <select id="pathField">
+        <option value="System.AreaPath">Area Path</option>
+        <option value="System.IterationPath">Iteration Path</option>
+      </select>
+    </div>
+    <div><label>Root path to search under</label><input id="rootPath" value="HxApps\HXG"></div>
+  </div>
+  <div class="row">
+    <button class="ghost" id="btnTree">List paths in ADO</button>
+    <span class="status" id="treeStatus"></span>
+  </div>
+  <div class="tree" id="tree" style="margin-top:12px"></div>
+  <div class="hint">Click any path below to use it as the root. UNDER pulls everything nested inside it, so you do not need the exact leaf.</div>
+</div>
+
+<div class="panel">
+  <h2>3. Pull work items</h2>
+  <div class="grid">
+    <div>
+      <label>Scope</label>
+      <select id="scope">
+        <option value="epic">Everything under an Epic</option>
+        <option value="path">Everything under a path</option>
+      </select>
+    </div>
+    <div id="epicBox"><label>Epic ID</label><input id="epicId" value="85554"></div>
+    <div>
+      <label>Types</label>
+      <select id="types">
+        <option value="all">All types</option>
+        <option value="story">Epic, Feature, User Story</option>
+        <option value="epicfeature">Epic and Feature only</option>
+      </select>
+    </div>
+    <div>
+      <label>State</label>
+      <select id="stateFilter">
+        <option value="open">Exclude Closed and Removed</option>
+        <option value="all">Everything</option>
+      </select>
+    </div>
+  </div>
+  <div class="row">
+    <button id="btnRun">Run query</button>
+    <button class="ghost" id="btnCsv" disabled>Download CSV</button>
+    <button class="ghost" id="btnJson" disabled>Copy JSON</button>
+    <span class="status" id="runStatus"></span>
+  </div>
+  <div class="wrap" id="resultWrap" style="margin-top:14px;display:none">
+    <table>
+      <thead><tr><th>ID</th><th>Type</th><th>Title</th><th>State</th><th>Parent</th><th>Path</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>4. Handoff snippet</h2>
+  <div class="hint" style="margin:0 0 10px">Working call, same two steps this page uses. Paste into the tracker and render the array however it already renders its rows.</div>
+  <pre id="snippet"></pre>
+  <div class="row"><button class="ghost" id="btnCopySnippet">Copy snippet</button><span class="status" id="snipStatus"></span></div>
+</div>
+
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = 'adoBridgePat';
+let RESULTS = [];
+
+if (localStorage.getItem(KEY)) { $('pat').value = localStorage.getItem(KEY); setConn('Token loaded from this browser', ''); }
+
+function setConn(msg, cls){ $('connStatus').textContent = msg; $('connStatus').className = 'status ' + cls; }
+function cfg(){
+  const pat = $('pat').value.trim();
+  if (pat) localStorage.setItem(KEY, pat);
+  return { org: $('org').value.trim(), project: $('project').value.trim(), pat };
+}
+function headers(pat){
+  return { 'Authorization': 'Basic ' + btoa(':' + pat), 'Content-Type': 'application/json' };
+}
+async function call(url, pat, body){
+  const res = await fetch(url, {
+    method: body ? 'POST' : 'GET',
+    headers: headers(pat),
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) throw new Error(res.status + ' ' + res.statusText + (res.status === 203 ? ' (token rejected)' : ''));
+  const text = await res.text();
+  if (text.trim().startsWith('<')) throw new Error('Got a sign-in page back, which means the token was not accepted');
+  return JSON.parse(text);
+}
+
+$('btnForget').onclick = () => { localStorage.removeItem(KEY); $('pat').value=''; setConn('Token cleared', 'warn'); };
+
+$('btnTest').onclick = async () => {
+  const c = cfg();
+  if (!c.pat) return setConn('Paste a token first', 'bad');
+  setConn('Testing...', '');
+  try {
+    const d = await call(`https://dev.azure.com/${c.org}/_apis/projects/${c.project}?api-version=7.0`, c.pat);
+    setConn('Connected to ' + d.name, 'ok');
+  } catch (e) { setConn(e.message, 'bad'); }
+};
+
+$('btnTree').onclick = async () => {
+  const c = cfg();
+  const kind = $('pathField').value === 'System.AreaPath' ? 'areas' : 'iterations';
+  $('treeStatus').textContent = 'Loading...'; $('treeStatus').className = 'status';
+  $('tree').innerHTML = '';
+  try {
+    const d = await call(`https://dev.azure.com/${c.org}/${c.project}/_apis/wit/classificationnodes/${kind}?$depth=6&api-version=7.0`, c.pat);
+    const lines = [];
+    (function walk(node, prefix){
+      const path = prefix ? prefix + '\\' + node.name : node.name;
+      lines.push(path);
+      (node.children || []).forEach(ch => walk(ch, path));
+    })(d, '');
+    $('tree').innerHTML = lines.map(p =>
+      `<div data-p="${p.replace(/"/g,'&quot;')}">${'&nbsp;'.repeat((p.split('\\').length-1)*3)}${p.split('\\').pop()}<span style="color:#586069"> · ${p}</span></div>`
+    ).join('');
+    $('tree').querySelectorAll('div').forEach(el => el.onclick = () => {
+      $('rootPath').value = el.dataset.p;
+      $('treeStatus').textContent = 'Root set to ' + el.dataset.p;
+      $('treeStatus').className = 'status ok';
+      buildSnippet();
+    });
+    $('treeStatus').textContent = lines.length + ' paths found';
+    $('treeStatus').className = 'status ok';
+  } catch (e) { $('treeStatus').textContent = e.message; $('treeStatus').className = 'status bad'; }
+};
+
+function treeWiql(){
+  const id = parseInt($('epicId').value, 10) || 0;
+  return `SELECT [System.Id] FROM workitemLinks `
+    + `WHERE ([Source].[System.Id] = ${id}) `
+    + `AND ([System.Links.LinkType] = 'System.LinkTypes.Hierarchy-Forward') `
+    + `MODE (Recursive)`;
+}
+
+async function getIds(c){
+  if ($('scope').value === 'epic'){
+    const r = await call(`https://dev.azure.com/${c.org}/${c.project}/_apis/wit/wiql?api-version=7.0`, c.pat, { query: treeWiql() });
+    const ids = new Set();
+    (r.workItemRelations || []).forEach(rel => {
+      if (rel.source) ids.add(rel.source.id);
+      if (rel.target) ids.add(rel.target.id);
+    });
+    return [...ids].sort((a,b) => a-b);
+  }
+  const r = await call(`https://dev.azure.com/${c.org}/${c.project}/_apis/wit/wiql?api-version=7.0`, c.pat, { query: wiql() });
+  return (r.workItems || []).map(w => w.id);
+}
+
+function wiql(){
+  const field = $('pathField').value;
+  const root = $('rootPath').value.trim().replace(/'/g, "''");
+  let q = `SELECT [System.Id] FROM WorkItems WHERE [${field}] UNDER '${root}'`;
+  const t = $('types').value;
+  if (t === 'story') q += ` AND [System.WorkItemType] IN ('Epic','Feature','User Story')`;
+  if (t === 'epicfeature') q += ` AND [System.WorkItemType] IN ('Epic','Feature')`;
+  if ($('stateFilter').value === 'open') q += ` AND [System.State] NOT IN ('Closed','Removed')`;
+  return q + ` ORDER BY [System.Id]`;
+}
+
+const FIELDS = ['System.Id','System.WorkItemType','System.Title','System.State',
+  'System.AreaPath','System.IterationPath','System.AssignedTo','System.Parent','System.Tags'];
+
+$('btnRun').onclick = async () => {
+  const c = cfg();
+  if (!c.pat) return void ($('runStatus').textContent = 'Paste a token first', $('runStatus').className='status bad');
+  $('btnRun').disabled = true;
+  $('runStatus').textContent = 'Querying...'; $('runStatus').className = 'status';
+  try {
+    const ids = await getIds(c);
+    if (!ids.length){
+      $('runStatus').textContent = $('scope').value === 'epic'
+        ? 'Query ran fine but that Epic has no children linked under it.'
+        : 'Query ran fine but returned 0 items. Try a higher root path.';
+      $('runStatus').className = 'status warn';
+      $('btnRun').disabled = false; return;
+    }
+    const items = [];
+    for (let i = 0; i < ids.length; i += 200){
+      const batch = await call(`https://dev.azure.com/${c.org}/${c.project}/_apis/wit/workitemsbatch?api-version=7.0`,
+        c.pat, { ids: ids.slice(i, i+200), fields: FIELDS });
+      items.push(...batch.value);
+      $('runStatus').textContent = `Fetched ${items.length} of ${ids.length}...`;
+    }
+    RESULTS = items.map(w => ({
+      id: w.id,
+      type: w.fields['System.WorkItemType'],
+      title: w.fields['System.Title'],
+      state: w.fields['System.State'],
+      parent: w.fields['System.Parent'] || '',
+      assignedTo: (w.fields['System.AssignedTo'] || {}).displayName || '',
+      areaPath: w.fields['System.AreaPath'],
+      iterationPath: w.fields['System.IterationPath'],
+      tags: w.fields['System.Tags'] || '',
+      url: `https://dev.azure.com/${c.org}/${c.project}/_workitems/edit/${w.id}`
+    }));
+    render();
+    $('runStatus').innerHTML = `<span class="count">${RESULTS.length}</span> work items returned`;
+    $('runStatus').className = 'status ok';
+    $('btnCsv').disabled = false; $('btnJson').disabled = false;
+  } catch (e) { $('runStatus').textContent = e.message; $('runStatus').className = 'status bad'; }
+  $('btnRun').disabled = false;
+  buildSnippet();
+};
+
+function render(){
+  $('resultWrap').style.display = 'block';
+  $('rows').innerHTML = RESULTS.map(r => `<tr>
+    <td><a href="${r.url}" target="_blank">${r.id}</a></td>
+    <td><span class="pill">${r.type}</span></td>
+    <td>${esc(r.title)}</td>
+    <td>${r.state}</td>
+    <td>${r.parent}</td>
+    <td style="color:#8b98a5;font-family:var(--mono);font-size:11.5px">${esc(r.iterationPath)}</td>
+  </tr>`).join('');
+}
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+
+$('btnCsv').onclick = () => {
+  const cols = Object.keys(RESULTS[0]);
+  const csv = [cols.join(',')].concat(RESULTS.map(r =>
+    cols.map(c => `"${String(r[c]).replace(/"/g,'""')}"`).join(','))).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'ado-export.csv'; a.click();
+};
+$('btnJson').onclick = async () => {
+  await navigator.clipboard.writeText(JSON.stringify(RESULTS, null, 2));
+  $('runStatus').textContent = 'JSON copied to clipboard'; $('runStatus').className = 'status ok';
+};
+
+function buildSnippet(){
+  const c = { org: $('org').value.trim(), project: $('project').value.trim() };
+  const isEpic = $('scope').value === 'epic';
+  const step1 = isEpic
+    ? `  // Step 1: walk the parent/child tree down from the Epic.
+  const q = await fetch(base + 'wiql?api-version=7.0', {
+    method: 'POST', headers: h,
+    body: JSON.stringify({ query: \`${treeWiql()}\` })
+  }).then(r => r.json());
+
+  const seen = new Set();
+  (q.workItemRelations || []).forEach(rel => {
+    if (rel.source) seen.add(rel.source.id);
+    if (rel.target) seen.add(rel.target.id);
+  });
+  const ids = [...seen].sort((a, b) => a - b);
+  if (!ids.length) return [];`
+    : `  // Step 1: WIQL returns matching IDs only.
+  const q = await fetch(base + 'wiql?api-version=7.0', {
+    method: 'POST', headers: h,
+    body: JSON.stringify({ query: \`${wiql()}\` })
+  }).then(r => r.json());
+
+  const ids = (q.workItems || []).map(w => w.id);
+  if (!ids.length) return [];`;
+  $('snippet').textContent =
+`// Reads work items from ADO. Returns a plain array the tracker can map over.
+async function loadFromAdo(pat) {
+  const org = '${c.org}', project = '${c.project}';
+  const h = { Authorization: 'Basic ' + btoa(':' + pat), 'Content-Type': 'application/json' };
+  const base = 'https://dev.azure.com/' + org + '/' + project + '/_apis/wit/';
+
+${step1}
+
+  // Step 2: batch fetch the fields, 200 IDs max per call.
+  const out = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const b = await fetch(base + 'workitemsbatch?api-version=7.0', {
+      method: 'POST', headers: h,
+      body: JSON.stringify({
+        ids: ids.slice(i, i + 200),
+        fields: ${JSON.stringify(FIELDS)}
+      })
+    }).then(r => r.json());
+    out.push(...b.value);
+  }
+
+  return out.map(w => ({
+    id: w.id,
+    type: w.fields['System.WorkItemType'],
+    title: w.fields['System.Title'],
+    state: w.fields['System.State'],
+    parent: w.fields['System.Parent'] || '',
+    owner: (w.fields['System.AssignedTo'] || {}).displayName || '',
+    iterationPath: w.fields['System.IterationPath'],
+    url: 'https://dev.azure.com/' + org + '/' + project + '/_workitems/edit/' + w.id
+  }));
+}`;
+}
+$('btnCopySnippet').onclick = async () => {
+  await navigator.clipboard.writeText($('snippet').textContent);
+  $('snipStatus').textContent = 'Copied'; $('snipStatus').className = 'status ok';
+};
+function syncScope(){
+  const isEpic = $('scope').value === 'epic';
+  $('epicBox').style.display = isEpic ? '' : 'none';
+  $('types').parentElement.style.opacity = isEpic ? .4 : 1;
+  $('stateFilter').parentElement.style.opacity = isEpic ? .4 : 1;
+  $('types').disabled = isEpic;
+  $('stateFilter').disabled = isEpic;
+  buildSnippet();
+}
+['org','project','pathField','rootPath','types','stateFilter','scope','epicId']
+  .forEach(id => $(id).addEventListener('change', buildSnippet));
+$('scope').addEventListener('change', syncScope);
+syncScope();
+</script>
+</body>
+</html>
